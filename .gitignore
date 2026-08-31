@@ -42,3 +42,9 @@ Thumbs.db
 # Docker volume data
 data/
 
+# SQLite local databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
