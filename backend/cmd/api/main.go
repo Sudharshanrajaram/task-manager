@@ -18,6 +18,7 @@ import (
 	"github.com/taskflow/backend/internal/middleware"
 	"github.com/taskflow/backend/internal/repository"
 	"github.com/taskflow/backend/internal/service"
+	"github.com/taskflow/backend/pkg/groq"
 	"github.com/taskflow/backend/pkg/logger"
 )
 
@@ -51,39 +52,45 @@ func main() {
 	taskRepo := repository.NewTaskRepository(database)
 	subtaskRepo := repository.NewSubtaskRepository(database)
 	timeEntryRepo := repository.NewTimeEntryRepository(database)
+	embeddingRepo := repository.NewEmbeddingRepository(database)
 
-	// 5. Initialize Services
+	// 5. Initialize External Clients
+	groqClient := groq.NewClient(cfg.Groq.APIKey, cfg.Groq.ChatModel, cfg.Groq.EmbeddingModel)
+
+	// 6. Initialize Services
 	projectService := service.NewProjectService(projectRepo)
 	taskService := service.NewTaskService(taskRepo, projectRepo, subtaskRepo)
 	subtaskService := service.NewSubtaskService(subtaskRepo, taskRepo)
 	timerManager := service.NewTimerManager(timeEntryRepo, taskRepo, subtaskRepo)
+	ragService := service.NewRAGService(groqClient, embeddingRepo)
 
 	// Recover in-flight active timers from DB on boot
 	if err := timerManager.RecoverInFlightTimers(); err != nil {
 		slog.Warn("Failed to recover in-flight timers", slog.String("error", err.Error()))
 	}
 
-	// 6. Initialize Handlers
+	// 7. Initialize Handlers
 	healthHandler := handler.NewHealthHandler(cfg.Server.Env, AppVersion)
 	projectHandler := handler.NewProjectHandler(projectService)
 	taskHandler := handler.NewTaskHandler(taskService)
 	subtaskHandler := handler.NewSubtaskHandler(subtaskService)
 	timerHandler := handler.NewTimerHandler(timerManager)
+	ragHandler := handler.NewRAGHandler(ragService, taskService, subtaskRepo)
 
-	// 7. Set Gin mode
+	// 8. Set Gin mode
 	if cfg.Server.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
 		gin.SetMode(gin.DebugMode)
 	}
 
-	// 8. Setup Gin engine & middlewares
+	// 9. Setup Gin engine & middlewares
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestLogger())
 	router.Use(middleware.CORS(cfg.Server.AllowedOrigins))
 
-	// 9. Register routes
+	// 10. Register routes
 	router.GET("/health", healthHandler.Check)
 
 	api := router.Group("/api")
@@ -113,6 +120,11 @@ func main() {
 		api.PUT("/tasks/:id/subtasks/reorder", subtaskHandler.Reorder)
 		api.PATCH("/subtasks/:id", subtaskHandler.Update)
 		api.DELETE("/subtasks/:id", subtaskHandler.Delete)
+
+		// RAG AI Subtask Suggestions
+		api.POST("/tasks/suggest-subtasks", ragHandler.SuggestSubtasks)
+		api.POST("/tasks/:id/suggest-subtasks", ragHandler.SuggestSubtasksForTask)
+		api.POST("/tasks/:id/accept-subtasks", ragHandler.AcceptSubtasks)
 
 		// Timers
 		api.POST("/timers/start", timerHandler.Start)

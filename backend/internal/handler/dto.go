@@ -64,6 +64,16 @@ type AdjustTimerRequest struct {
 	DeltaSeconds int64 `json:"delta_seconds" binding:"required"`
 }
 
+type SuggestSubtasksRequest struct {
+	Title     string     `json:"title"`
+	ProjectID *uuid.UUID `json:"project_id"`
+	Count     int        `json:"count"`
+}
+
+type AcceptSubtasksRequest struct {
+	Subtasks []string `json:"subtasks" binding:"required"`
+}
+
 // ErrorResponse sends a consistent JSON error response
 func RespondWithError(c *gin.Context, statusCode int, message string) {
 	c.JSON(statusCode, gin.H{
