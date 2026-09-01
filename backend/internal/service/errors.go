@@ -15,4 +15,8 @@ var (
 	ErrInvalidBugSeverity   = errors.New("invalid bug severity (must be critical, major, minor, or trivial)")
 	ErrSubtaskNotFound      = errors.New("subtask not found")
 	ErrSubtaskTitleRequired = errors.New("subtask title cannot be empty")
+	ErrTimerNotFound        = errors.New("timer not found")
+	ErrTimerAlreadyRunning  = errors.New("a timer is already active for this task/subtask")
+	ErrTimerAlreadyPaused   = errors.New("timer is already paused")
+	ErrTimerNotPaused       = errors.New("timer is not paused")
 )

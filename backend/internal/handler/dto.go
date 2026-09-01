@@ -55,6 +55,15 @@ type ReorderSubtasksRequest struct {
 	OrderedIDs []uuid.UUID `json:"ordered_ids" binding:"required"`
 }
 
+type StartTimerRequest struct {
+	TaskID    uuid.UUID  `json:"task_id" binding:"required"`
+	SubtaskID *uuid.UUID `json:"subtask_id"`
+}
+
+type AdjustTimerRequest struct {
+	DeltaSeconds int64 `json:"delta_seconds" binding:"required"`
+}
+
 // ErrorResponse sends a consistent JSON error response
 func RespondWithError(c *gin.Context, statusCode int, message string) {
 	c.JSON(statusCode, gin.H{

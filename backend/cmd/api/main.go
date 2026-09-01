@@ -50,17 +50,25 @@ func main() {
 	projectRepo := repository.NewProjectRepository(database)
 	taskRepo := repository.NewTaskRepository(database)
 	subtaskRepo := repository.NewSubtaskRepository(database)
+	timeEntryRepo := repository.NewTimeEntryRepository(database)
 
 	// 5. Initialize Services
 	projectService := service.NewProjectService(projectRepo)
 	taskService := service.NewTaskService(taskRepo, projectRepo, subtaskRepo)
 	subtaskService := service.NewSubtaskService(subtaskRepo, taskRepo)
+	timerManager := service.NewTimerManager(timeEntryRepo, taskRepo, subtaskRepo)
+
+	// Recover in-flight active timers from DB on boot
+	if err := timerManager.RecoverInFlightTimers(); err != nil {
+		slog.Warn("Failed to recover in-flight timers", slog.String("error", err.Error()))
+	}
 
 	// 6. Initialize Handlers
 	healthHandler := handler.NewHealthHandler(cfg.Server.Env, AppVersion)
 	projectHandler := handler.NewProjectHandler(projectService)
 	taskHandler := handler.NewTaskHandler(taskService)
 	subtaskHandler := handler.NewSubtaskHandler(subtaskService)
+	timerHandler := handler.NewTimerHandler(timerManager)
 
 	// 7. Set Gin mode
 	if cfg.Server.Env == "production" {
@@ -105,6 +113,17 @@ func main() {
 		api.PUT("/tasks/:id/subtasks/reorder", subtaskHandler.Reorder)
 		api.PATCH("/subtasks/:id", subtaskHandler.Update)
 		api.DELETE("/subtasks/:id", subtaskHandler.Delete)
+
+		// Timers
+		api.POST("/timers/start", timerHandler.Start)
+		api.POST("/timers/:id/pause", timerHandler.Pause)
+		api.POST("/timers/:id/resume", timerHandler.Resume)
+		api.POST("/timers/:id/stop", timerHandler.Stop)
+		api.POST("/timers/:id/adjust", timerHandler.Adjust)
+		api.GET("/timers/active", timerHandler.GetActive)
+
+		// Analytics
+		api.GET("/analytics/summary", timerHandler.AnalyticsSummary)
 	}
 
 	// 10. Setup HTTP server with sensible timeouts
