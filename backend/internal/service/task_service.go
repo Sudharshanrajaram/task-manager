@@ -46,6 +46,7 @@ type TaskService interface {
 	DeleteTask(id uuid.UUID) error
 	BlockTask(id uuid.UUID, isBlocked bool, reason string) (*model.Task, error)
 	ArchiveTask(id uuid.UUID, isArchived bool) (*model.Task, error)
+	SaveTaskSummary(id uuid.UUID, summary, hash string) (*model.Task, error)
 }
 
 type taskService struct {
@@ -368,6 +369,27 @@ func (s *taskService) ArchiveTask(id uuid.UUID, isArchived bool) (*model.Task, e
 	} else {
 		task.ArchivedAt = nil
 	}
+
+	if err := s.taskRepo.Update(task); err != nil {
+		return nil, err
+	}
+
+	return task, nil
+}
+
+func (s *taskService) SaveTaskSummary(id uuid.UUID, summary, hash string) (*model.Task, error) {
+	task, err := s.taskRepo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if task == nil {
+		return nil, ErrTaskNotFound
+	}
+
+	now := time.Now().UTC()
+	task.AISummary = &summary
+	task.AISummarySourceHash = &hash
+	task.AISummaryGeneratedAt = &now
 
 	if err := s.taskRepo.Update(task); err != nil {
 		return nil, err

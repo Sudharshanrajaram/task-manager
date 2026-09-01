@@ -15,4 +15,6 @@ export const tasksApi = {
     apiClient.patch<Task>(`/tasks/${id}/block`, { is_blocked: isBlocked, blocked_reason: reason }).then((r) => r.data),
   archive: (id: string, isArchived: boolean = true) =>
     apiClient.post<Task>(`/tasks/${id}/archive`, { is_archived: isArchived }).then((r) => r.data),
+  summarize: (id: string) =>
+    apiClient.post<{ summary: string; from_cache: boolean; task_id: string; ticket_key: string }>(`/tasks/${id}/summarize`).then((r) => r.data),
 }

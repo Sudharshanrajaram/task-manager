@@ -9,11 +9,12 @@ import (
 )
 
 type TaskFilter struct {
-	ProjectID *uuid.UUID
-	Status    *model.TaskStatus
-	Type      *model.TaskType
-	Priority  *model.TaskPriority
-	Search    *string
+	ProjectID  *uuid.UUID
+	Status     *model.TaskStatus
+	Type       *model.TaskType
+	Priority   *model.TaskPriority
+	Search     *string
+	IsArchived *bool
 }
 
 type TaskRepository interface {
@@ -63,6 +64,9 @@ func (r *taskRepository) FindAll(filter TaskFilter) ([]model.Task, error) {
 	if filter.Search != nil && *filter.Search != "" {
 		pattern := "%" + *filter.Search + "%"
 		q = q.Where("title LIKE ? OR description LIKE ? OR ticket_key LIKE ?", pattern, pattern, pattern)
+	}
+	if filter.IsArchived != nil {
+		q = q.Where("is_archived = ?", *filter.IsArchived)
 	}
 
 	err := q.Order("ticket_number desc").Find(&tasks).Error

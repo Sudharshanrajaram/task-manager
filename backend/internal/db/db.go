@@ -103,11 +103,14 @@ func AutoMigrate(database *gorm.DB, isPostgres bool) error {
 	}
 
 	if err := database.AutoMigrate(
+		&model.User{},
 		&model.Project{},
 		&model.Task{},
 		&model.Subtask{},
 		&model.TimeEntry{},
 		&model.TaskTitleEmbedding{},
+		&model.Note{},
+		&model.TaskDependency{},
 	); err != nil {
 		return err
 	}

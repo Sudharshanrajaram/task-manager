@@ -7,6 +7,7 @@ import { useTimerStore } from '../store/timerStore'
 import { timersApi } from '../api/timers'
 import { formatDurationHMS, STATUS_CONFIG, PRIORITY_CONFIG } from '../lib/utils'
 import { Play, Pause, Square, Check, X, ArrowLeft, CheckCircle2 } from 'lucide-react'
+import NotesEditor from '../components/notes/NotesEditor'
 
 export default function FocusMode() {
   const { taskId } = useParams<{ taskId: string }>()
@@ -217,6 +218,11 @@ export default function FocusMode() {
             </div>
           </div>
         )}
+
+        {/* Obsidian-Style Notes for Focus Session (Phase 11) */}
+        <div className="w-full text-left">
+          <NotesEditor taskId={taskId} title="Focus Notes" />
+        </div>
       </div>
 
       {/* Footer */}

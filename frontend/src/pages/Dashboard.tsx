@@ -5,10 +5,11 @@ import { tasksApi } from '../api/tasks'
 import { timersApi } from '../api/timers'
 import { useTimerStore } from '../store/timerStore'
 import { formatDuration, STATUS_CONFIG, TYPE_CONFIG } from '../lib/utils'
-import { Plus, Clock, CheckSquare, Layers } from 'lucide-react'
+import { Plus, Clock, CheckSquare, Layers, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import type { Project } from '../types'
 import CreateTaskDialog from '../components/tasks/CreateTaskDialog'
+import StandupDialog from '../components/analytics/StandupDialog'
 
 export default function Dashboard() {
   const { data: projects = [], isLoading } = useQuery({
@@ -21,6 +22,7 @@ export default function Dashboard() {
   })
   const { activeTimers, localElapsed } = useTimerStore()
   const [createTaskProjectId, setCreateTaskProjectId] = useState<string | null>(null)
+  const [showStandup, setShowStandup] = useState(false)
 
   if (isLoading) return <LoadingState />
 
@@ -30,11 +32,20 @@ export default function Dashboard() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Page header */}
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Dashboard</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          {projects.length} project{projects.length !== 1 ? 's' : ''} · {activeTimers.length} timer{activeTimers.length !== 1 ? 's' : ''} running
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Dashboard</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            {projects.length} project{projects.length !== 1 ? 's' : ''} · {activeTimers.length} timer{activeTimers.length !== 1 ? 's' : ''} running
+          </p>
+        </div>
+        <button
+          onClick={() => setShowStandup(true)}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors shadow-sm"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Daily Standup</span>
+        </button>
       </div>
 
       {/* Weekly analytics summary bar */}
@@ -85,6 +96,10 @@ export default function Dashboard() {
           projectId={createTaskProjectId}
           onClose={() => setCreateTaskProjectId(null)}
         />
+      )}
+
+      {showStandup && (
+        <StandupDialog onClose={() => setShowStandup(false)} />
       )}
     </div>
   )

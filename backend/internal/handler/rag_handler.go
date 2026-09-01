@@ -143,3 +143,78 @@ func (h *RAGHandler) AcceptSubtasks(c *gin.Context) {
 	refreshedTask, _ := h.taskService.GetTaskByID(task.ID)
 	c.JSON(http.StatusCreated, refreshedTask)
 }
+
+// SummarizeTask handles POST /api/tasks/:id/summarize
+func (h *RAGHandler) SummarizeTask(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		RespondWithError(c, http.StatusBadRequest, "Invalid task ID format (must be UUID)")
+		return
+	}
+
+	task, err := h.taskService.GetTaskByID(id)
+	if err != nil {
+		RespondWithError(c, http.StatusInternalServerError, "Failed to retrieve task")
+		return
+	}
+	if task == nil {
+		RespondWithError(c, http.StatusNotFound, "Task not found")
+		return
+	}
+
+	subtasks, _ := h.subtaskRepo.FindByTaskID(task.ID)
+
+	summary, fromCache, err := h.ragService.SummarizeTask(c.Request.Context(), task, subtasks)
+	if err != nil {
+		RespondWithError(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Persist the updated summary fields if freshly generated
+	if !fromCache && task.AISummarySourceHash != nil {
+		_, _ = h.taskService.SaveTaskSummary(task.ID, summary, *task.AISummarySourceHash)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"summary":    summary,
+		"from_cache": fromCache,
+		"task_id":    task.ID,
+		"ticket_key": task.TicketKey,
+	})
+}
+
+// GenerateStandup handles POST /api/analytics/standup
+func (h *RAGHandler) GenerateStandup(c *gin.Context) {
+	var projectID *uuid.UUID
+	if pIDStr := c.Query("project_id"); pIDStr != "" {
+		if pID, err := uuid.Parse(pIDStr); err == nil {
+			projectID = &pID
+		}
+	}
+
+	isArchivedFalse := false
+	tasks, err := h.taskService.GetTasks(repository.TaskFilter{
+		ProjectID:  projectID,
+		IsArchived: &isArchivedFalse,
+	})
+	if err != nil {
+		RespondWithError(c, http.StatusInternalServerError, "Failed to fetch tasks for standup")
+		return
+	}
+
+	var totalSecs int64
+	for _, t := range tasks {
+		totalSecs += int64(t.TotalTimeSpentSeconds)
+	}
+
+	report, err := h.ragService.GenerateStandup(c.Request.Context(), tasks, totalSecs)
+	if err != nil {
+		RespondWithError(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"report": report,
+	})
+}

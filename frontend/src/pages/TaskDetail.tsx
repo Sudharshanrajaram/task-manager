@@ -14,6 +14,9 @@ import {
 import TimerControls from '../components/timers/TimerControls'
 import SubtaskRow from '../components/subtasks/SubtaskRow'
 import AISubtaskPanel from '../components/subtasks/AISubtaskPanel'
+import TaskSummaryCard from '../components/tasks/TaskSummaryCard'
+import TaskDependenciesPanel from '../components/dependencies/TaskDependenciesPanel'
+import NotesEditor from '../components/notes/NotesEditor'
 import {
   ArrowLeft,
   Clock,
@@ -342,6 +345,11 @@ export default function TaskDetail() {
           </div>
         </div>
 
+        {/* AI Ticket Summary Card (Phase 12) */}
+        <div className="mb-6">
+          <TaskSummaryCard taskId={task.id} initialSummary={task.ai_summary} />
+        </div>
+
         {/* Description Section */}
         <div className="mb-6">
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
@@ -480,6 +488,12 @@ export default function TaskDetail() {
           </button>
         </form>
       </div>
+
+      {/* Dependencies Section (Phase 13) */}
+      <TaskDependenciesPanel taskId={task.id} projectId={task.project_id} />
+
+      {/* Obsidian-Style Notes Editor (Phase 11) */}
+      <NotesEditor taskId={task.id} title="Ticket Notes & Scratchpad" />
     </div>
   )
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/taskflow/backend/internal/middleware"
 	"github.com/taskflow/backend/internal/repository"
 	"github.com/taskflow/backend/internal/service"
+	"github.com/taskflow/backend/internal/worker"
 	"github.com/taskflow/backend/internal/ws"
 	"github.com/taskflow/backend/pkg/groq"
 	"github.com/taskflow/backend/pkg/logger"
@@ -50,28 +51,38 @@ func main() {
 	}
 
 	// 4. Initialize Repositories
+	userRepo := repository.NewUserRepository(database)
 	projectRepo := repository.NewProjectRepository(database)
 	taskRepo := repository.NewTaskRepository(database)
 	subtaskRepo := repository.NewSubtaskRepository(database)
 	timeEntryRepo := repository.NewTimeEntryRepository(database)
 	embeddingRepo := repository.NewEmbeddingRepository(database)
+	noteRepo := repository.NewNoteRepository(database)
+	taskDepRepo := repository.NewTaskDependencyRepository(database)
 
 	// 5. Initialize External Clients
 	groqClient := groq.NewClient(cfg.Groq.APIKey, cfg.Groq.ChatModel, cfg.Groq.EmbeddingModel)
 
 	// 6. Initialize Services
+	authService := service.NewAuthService(userRepo, &cfg.JWT)
 	projectService := service.NewProjectService(projectRepo)
 	taskService := service.NewTaskService(taskRepo, projectRepo, subtaskRepo)
 	subtaskService := service.NewSubtaskService(subtaskRepo, taskRepo)
 	timerManager := service.NewTimerManager(timeEntryRepo, taskRepo, subtaskRepo)
 	ragService := service.NewRAGService(groqClient, embeddingRepo)
+	logService := service.NewLogService(database)
+	noteService := service.NewNoteService(noteRepo, taskRepo)
+	depService := service.NewTaskDependencyService(taskDepRepo, taskRepo)
+
+	// 7. Start Background Auto-Archiver (archives completed tasks older than 14 days)
+	worker.StartAutoArchiver(context.Background(), database, 24*time.Hour)
 
 	// Recover in-flight active timers from DB on boot
 	if err := timerManager.RecoverInFlightTimers(); err != nil {
 		slog.Warn("Failed to recover in-flight timers", slog.String("error", err.Error()))
 	}
 
-	// 7. Initialize External Cache / Pub-Sub (Redis)
+	// 8. Initialize External Cache / Pub-Sub (Redis)
 	var redisClient *redis.Client
 	if cfg.Redis.Host != "" {
 		rClient := redis.NewClient(&redis.Options{
@@ -90,32 +101,36 @@ func main() {
 		cancel()
 	}
 
-	// 8. Initialize Realtime WebSocket Hub
+	// 9. Initialize Realtime WebSocket Hub
 	wsHub := ws.NewHub(timerManager, redisClient, cfg.Server.AllowedOrigins)
 	go wsHub.Run(context.Background())
 
-	// 9. Initialize Handlers
+	// 10. Initialize Handlers
 	healthHandler := handler.NewHealthHandler(cfg.Server.Env, AppVersion)
+	authHandler := handler.NewAuthHandler(authService)
 	projectHandler := handler.NewProjectHandler(projectService)
 	taskHandler := handler.NewTaskHandler(taskService)
 	subtaskHandler := handler.NewSubtaskHandler(subtaskService)
 	timerHandler := handler.NewTimerHandler(timerManager)
 	ragHandler := handler.NewRAGHandler(ragService, taskService, subtaskRepo)
+	logHandler := handler.NewLogHandler(logService)
+	noteHandler := handler.NewNoteHandler(noteService)
+	depHandler := handler.NewTaskDependencyHandler(depService)
 
-	// 10. Set Gin mode
+	// 11. Set Gin mode
 	if cfg.Server.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
 		gin.SetMode(gin.DebugMode)
 	}
 
-	// 11. Setup Gin engine & middlewares
+	// 12. Setup Gin engine & middlewares
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestLogger())
 	router.Use(middleware.CORS(cfg.Server.AllowedOrigins))
 
-	// 12. Register routes
+	// 13. Register routes
 	router.GET("/health", healthHandler.Check)
 	router.GET("/ws/timers", wsHub.HandleWebSocket)
 
@@ -124,6 +139,15 @@ func main() {
 		api.GET("/ping", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"message": "pong"})
 		})
+
+		// Auth
+		auth := api.Group("/auth")
+		{
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/refresh", authHandler.Refresh)
+			auth.GET("/me", middleware.RequireAuth(authService), authHandler.Me)
+		}
 
 		// Projects
 		api.POST("/projects", projectHandler.Create)
@@ -142,6 +166,18 @@ func main() {
 		api.DELETE("/tasks/:id", taskHandler.Delete)
 		api.PATCH("/tasks/:id/block", taskHandler.Block)
 		api.POST("/tasks/:id/archive", taskHandler.Archive)
+		api.POST("/tasks/:id/summarize", ragHandler.SummarizeTask)
+
+		// Task Dependencies
+		api.POST("/tasks/:id/dependencies", depHandler.AddDependency)
+		api.GET("/tasks/:id/dependencies", depHandler.GetDependencies)
+		api.DELETE("/tasks/:id/dependencies/:depId", depHandler.RemoveDependency)
+
+		// Focus Mode Notes
+		api.GET("/tasks/:id/notes", noteHandler.GetTaskNote)
+		api.PUT("/tasks/:id/notes", middleware.OptionalAuth(authService), noteHandler.SaveTaskNote)
+		api.GET("/notes/scratchpad", middleware.OptionalAuth(authService), noteHandler.GetScratchpad)
+		api.PUT("/notes/scratchpad", middleware.OptionalAuth(authService), noteHandler.SaveScratchpad)
 
 		// Subtasks
 		api.POST("/tasks/:id/subtasks", subtaskHandler.Create)
@@ -162,8 +198,13 @@ func main() {
 		api.POST("/timers/:id/adjust", timerHandler.Adjust)
 		api.GET("/timers/active", timerHandler.GetActive)
 
-		// Analytics
+		// Daily Logs & Excel Export
+		api.GET("/logs/daily", logHandler.GetDailyLogs)
+		api.GET("/logs/export", logHandler.ExportExcel)
+
+		// Analytics & Standup
 		api.GET("/analytics/summary", timerHandler.AnalyticsSummary)
+		api.POST("/analytics/standup", ragHandler.GenerateStandup)
 	}
 
 	// 10. Setup HTTP server with sensible timeouts

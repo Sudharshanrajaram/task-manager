@@ -6,6 +6,7 @@ import { useTimerWebSocket } from './hooks/useTimerWebSocket'
 import Layout from './components/layout/Layout'
 import CommandPalette from './components/command/CommandPalette'
 import Dashboard from './pages/Dashboard'
+import DailyLogs from './pages/DailyLogs'
 import TaskBoard from './pages/TaskBoard'
 import TaskDetail from './pages/TaskDetail'
 import FocusMode from './pages/FocusMode'
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/logs" element={<DailyLogs />} />
           <Route path="/projects/:projectId" element={<TaskBoard />} />
           <Route path="/tasks/:taskId" element={<TaskDetail />} />
         </Route>

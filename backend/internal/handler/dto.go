@@ -6,6 +6,21 @@ import (
 	"github.com/taskflow/backend/internal/model"
 )
 
+type RegisterRequest struct {
+	Name     string `json:"name" binding:"required"`
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
 type CreateProjectRequest struct {
 	Name  string `json:"name" binding:"required"`
 	Key   string `json:"key" binding:"required"`
@@ -49,6 +64,14 @@ type BlockTaskRequest struct {
 
 type ArchiveTaskRequest struct {
 	IsArchived *bool `json:"is_archived"`
+}
+
+type SaveNoteRequest struct {
+	Content string `json:"content"`
+}
+
+type CreateDependencyRequest struct {
+	DependsOnTaskID uuid.UUID `json:"depends_on_task_id" binding:"required"`
 }
 
 type CreateSubtaskRequest struct {

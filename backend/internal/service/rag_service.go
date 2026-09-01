@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/taskflow/backend/internal/model"
@@ -29,6 +32,8 @@ type SubtaskSuggestionResult struct {
 type RAGService interface {
 	SuggestSubtasks(ctx context.Context, projectID *uuid.UUID, title string, count int) (*SubtaskSuggestionResult, error)
 	SaveAcceptedSubtasks(ctx context.Context, projectID *uuid.UUID, title string, subtasks []string) error
+	SummarizeTask(ctx context.Context, task *model.Task, subtasks []model.Subtask) (summary string, fromCache bool, err error)
+	GenerateStandup(ctx context.Context, tasks []model.Task, totalSeconds int64) (string, error)
 }
 
 type ragService struct {
@@ -208,4 +213,87 @@ func (s *ragService) SaveAcceptedSubtasks(ctx context.Context, projectID *uuid.U
 	)
 
 	return nil
+}
+
+func (s *ragService) SummarizeTask(ctx context.Context, task *model.Task, subtasks []model.Subtask) (string, bool, error) {
+	// 1. Calculate input content hash
+	hasher := sha256.New()
+	hasher.Write([]byte(task.Title))
+	hasher.Write([]byte("\n" + task.Description))
+	for _, sub := range subtasks {
+		hasher.Write([]byte("\n- " + sub.Title))
+	}
+	currentHash := hex.EncodeToString(hasher.Sum(nil))
+
+	// 2. Check if cache is valid
+	if task.AISummary != nil && task.AISummarySourceHash != nil && *task.AISummarySourceHash == currentHash {
+		return *task.AISummary, true, nil
+	}
+
+	// 3. Prompt LLM for concise 1-2 sentence plain-English summary
+	systemPrompt := "You are an expert software engineering assistant. In 1 to 2 concise, clear sentences (maximum 50 words), summarize what this engineering ticket accomplishes and its core scope. Return plain text only with no markdown formatting."
+
+	var userPromptBuilder strings.Builder
+	userPromptBuilder.WriteString(fmt.Sprintf("Title: %s\n", task.Title))
+	if task.Description != "" {
+		userPromptBuilder.WriteString(fmt.Sprintf("Description: %s\n", task.Description))
+	}
+	if len(subtasks) > 0 {
+		userPromptBuilder.WriteString("Subtasks:\n")
+		for _, sub := range subtasks {
+			userPromptBuilder.WriteString(fmt.Sprintf("- %s\n", sub.Title))
+		}
+	}
+
+	summary, err := s.groqClient.CreateChatCompletion(ctx, systemPrompt, userPromptBuilder.String())
+	if err != nil {
+		return "", false, err
+	}
+
+	summary = strings.TrimSpace(summary)
+	now := time.Now().UTC()
+	task.AISummary = &summary
+	task.AISummarySourceHash = &currentHash
+	task.AISummaryGeneratedAt = &now
+
+	return summary, false, nil
+}
+
+func (s *ragService) GenerateStandup(ctx context.Context, tasks []model.Task, totalSeconds int64) (string, error) {
+	systemPrompt := `You are an engineering standup assistant. Generate a clean, professional Daily Standup report formatted in Markdown based on the engineer's recent task updates and time logged.
+
+Use this format:
+### 🚀 Completed & Delivered
+(bullet list of completed tasks with ticket keys)
+
+### 🔨 In Progress & Next Focus
+(bullet list of tasks in progress or in review)
+
+### ⚠️ Blockers & Risks
+(bullet list of any blocked tasks with reasons, or "No active blockers")`
+
+	var promptBuilder strings.Builder
+	h := totalSeconds / 3600
+	m := (totalSeconds % 3600) / 60
+	promptBuilder.WriteString(fmt.Sprintf("Total tracked time today: %dh %dm\n\nTickets:\n", h, m))
+
+	for _, t := range tasks {
+		status := string(t.Status)
+		blockedStr := ""
+		if t.IsBlocked {
+			blockedStr = " [BLOCKED"
+			if t.BlockedReason != nil {
+				blockedStr += ": " + *t.BlockedReason
+			}
+			blockedStr += "]"
+		}
+		promptBuilder.WriteString(fmt.Sprintf("- [%s] %s (Status: %s)%s\n", t.TicketKey, t.Title, status, blockedStr))
+	}
+
+	report, err := s.groqClient.CreateChatCompletion(ctx, systemPrompt, promptBuilder.String())
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(report), nil
 }
