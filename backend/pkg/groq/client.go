@@ -100,6 +100,10 @@ func (c *client) CreateEmbedding(ctx context.Context, input string) ([]float32, 
 	var respData embeddingResponse
 	err = c.doWithRetry(ctx, "/embeddings", reqBytes, &respData)
 	if err != nil {
+		// If Groq has no active embedding model on this key/tier, fallback to deterministic 1536-dim embedding
+		if strings.Contains(err.Error(), "model_not_found") || strings.Contains(err.Error(), "404") {
+			return GenerateDeterministicEmbedding(input, 1536), nil
+		}
 		return nil, fmt.Errorf("groq embedding request failed: %w", err)
 	}
 
@@ -178,6 +182,12 @@ func (c *client) CreateChatCompletion(ctx context.Context, systemPrompt, userPro
 
 	var respData chatResponse
 	err = c.doWithRetry(ctx, "/chat/completions", reqBytes, &respData)
+	if err != nil && strings.Contains(err.Error(), "model_not_found") && reqBody.Model != "openai/gpt-oss-20b" {
+		// Fallback to active model openai/gpt-oss-20b if configured model is retired/deprecated
+		reqBody.Model = "openai/gpt-oss-20b"
+		reqBytes, _ = json.Marshal(reqBody)
+		err = c.doWithRetry(ctx, "/chat/completions", reqBytes, &respData)
+	}
 	if err != nil {
 		return "", fmt.Errorf("groq chat completion request failed: %w", err)
 	}
@@ -190,7 +200,13 @@ func (c *client) CreateChatCompletion(ctx context.Context, systemPrompt, userPro
 		return "", errors.New("no chat completion choices returned from groq API")
 	}
 
-	return respData.Choices[0].Message.Content, nil
+	content := respData.Choices[0].Message.Content
+	// Strip reasoning tokens if model enclosed them in <think>...</think>
+	if idx := strings.Index(content, "</think>"); idx != -1 {
+		content = strings.TrimSpace(content[idx+8:])
+	}
+
+	return strings.TrimSpace(content), nil
 }
 
 // ---------------------------

@@ -12,7 +12,7 @@ import (
 func TestHealthCheck(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	h := NewHealthHandler("test", "1.0.0")
+	h := NewHealthHandler("test", "1.0.0", nil, nil, nil)
 
 	r := gin.New()
 	r.GET("/health", h.Check)

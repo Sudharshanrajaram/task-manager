@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend build test
+.PHONY: dev dev-backend dev-frontend build test docker-up docker-down docker-build db-up db-down
 
 dev:
 	@echo "Starting backend and frontend..."
@@ -17,3 +17,17 @@ build:
 test:
 	cd backend && go test -v -race ./...
 
+db-up:
+	docker compose up -d postgres redis
+
+db-down:
+	docker compose stop postgres redis
+
+docker-build:
+	docker compose build
+
+docker-up:
+	docker compose up --build -d
+
+docker-down:
+	docker compose down

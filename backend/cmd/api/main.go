@@ -106,7 +106,8 @@ func main() {
 	go wsHub.Run(context.Background())
 
 	// 10. Initialize Handlers
-	healthHandler := handler.NewHealthHandler(cfg.Server.Env, AppVersion)
+	healthHandler := handler.NewHealthHandler(cfg.Server.Env, AppVersion, database, redisClient, timerManager)
+	metricsHandler := handler.NewMetricsHandler(database, redisClient, timerManager)
 	authHandler := handler.NewAuthHandler(authService)
 	projectHandler := handler.NewProjectHandler(projectService)
 	taskHandler := handler.NewTaskHandler(taskService)
@@ -132,6 +133,7 @@ func main() {
 
 	// 13. Register routes
 	router.GET("/health", healthHandler.Check)
+	router.GET("/metrics", metricsHandler.Metrics)
 	router.GET("/ws/timers", wsHub.HandleWebSocket)
 
 	api := router.Group("/api")
@@ -139,6 +141,7 @@ func main() {
 		api.GET("/ping", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"message": "pong"})
 		})
+		api.GET("/metrics", metricsHandler.Metrics)
 
 		// Auth
 		auth := api.Group("/auth")

@@ -94,7 +94,7 @@ func Load() (*Config, error) {
 		},
 		Groq: GroqConfig{
 			APIKey:         getEnv("GROQ_API_KEY", ""),
-			ChatModel:      getEnv("GROQ_CHAT_MODEL", "llama-3.1-8b-instant"),
+			ChatModel:      getEnv("GROQ_CHAT_MODEL", "openai/gpt-oss-20b"),
 			EmbeddingModel: getEnv("GROQ_EMBEDDING_MODEL", "nomic-embed-text-v1_5"),
 		},
 	}

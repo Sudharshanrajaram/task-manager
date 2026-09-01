@@ -5,11 +5,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/taskflow/backend/pkg/metrics"
 )
 
 // RequestLogger returns a gin.HandlerFunc that logs HTTP requests with slog
 func RequestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		metrics.TotalHTTPRequests.Add(1)
 		start := time.Now()
 		path := c.Request.URL.Path
 		raw := c.Request.URL.RawQuery
