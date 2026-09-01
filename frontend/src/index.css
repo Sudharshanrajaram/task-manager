@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  /* Design Tokens from TaskFlow roadmap */
+  --color-slate-50: #f8fafc;
+  --color-slate-900: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-2: #334155;
+
+  --color-accent: #4f46e5;
+  --color-accent-hover: #4338ca;
+
+  --color-status-done: #16a34a;
+  --color-status-blocked: #d97706;
+  --color-status-bug: #dc2626;
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+  body {
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  * {
+    @apply border-slate-200 dark:border-slate-700;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme(colors.slate.300) transparent;
+  }
+  .dark .scrollbar-thin {
+    scrollbar-color: theme(colors.slate.600) transparent;
+  }
+}
