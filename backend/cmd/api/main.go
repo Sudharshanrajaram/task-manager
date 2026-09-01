@@ -201,6 +201,7 @@ func main() {
 		// Daily Logs & Excel Export
 		api.GET("/logs/daily", logHandler.GetDailyLogs)
 		api.GET("/logs/export", logHandler.ExportExcel)
+		api.POST("/logs/archive-trigger", logHandler.TriggerArchive)
 
 		// Analytics & Standup
 		api.GET("/analytics/summary", timerHandler.AnalyticsSummary)

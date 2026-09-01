@@ -177,3 +177,4 @@ export default function TaskDependenciesPanel({ taskId, projectId }: TaskDepende
     </div>
   )
 }
+

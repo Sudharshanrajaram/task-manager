@@ -8,9 +8,10 @@ import { Edit3, Eye, CheckCircle2, Loader2 } from 'lucide-react'
 interface NotesEditorProps {
   taskId?: string // If undefined, edits global scratchpad
   title?: string
+  className?: string
 }
 
-export default function NotesEditor({ taskId, title = 'Notes' }: NotesEditorProps) {
+export default function NotesEditor({ taskId, title = 'Notes', className = '' }: NotesEditorProps) {
   const [content, setContent] = useState('')
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
   const [isSaved, setIsSaved] = useState(true)
@@ -56,8 +57,10 @@ export default function NotesEditor({ taskId, title = 'Notes' }: NotesEditorProp
   const renderableMarkdown = content.replace(/\[\[([A-Z0-9]+-\d+)\]\]/g, '[$1](/tasks/$1)')
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm flex flex-col h-full">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
+    <div
+      className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm flex flex-col ${className}`}
+    >
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3 shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</span>
           <span className="text-[11px] text-slate-400 font-mono">Obsidian Markdown</span>
@@ -87,7 +90,7 @@ export default function NotesEditor({ taskId, title = 'Notes' }: NotesEditorProp
               onClick={() => setActiveTab('edit')}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors ${
                 activeTab === 'edit'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm font-medium'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
@@ -98,7 +101,7 @@ export default function NotesEditor({ taskId, title = 'Notes' }: NotesEditorProp
               onClick={() => setActiveTab('preview')}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors ${
                 activeTab === 'preview'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm font-medium'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
@@ -116,10 +119,10 @@ export default function NotesEditor({ taskId, title = 'Notes' }: NotesEditorProp
           value={content}
           onChange={(e) => handleContentChange(e.target.value)}
           placeholder={`Write markdown notes here...\n\n- Bullet points\n- [[TICKET-KEY]] backlinks to other tickets\n- Code snippets`}
-          className="w-full flex-1 min-h-[160px] p-3 text-sm font-mono bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none leading-relaxed"
+          className="w-full flex-1 min-h-[220px] p-3 text-sm font-mono bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none leading-relaxed"
         />
       ) : (
-        <div className="flex-1 min-h-[160px] p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 overflow-y-auto prose dark:prose-invert prose-sm max-w-none">
+        <div className="flex-1 min-h-[220px] p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 overflow-y-auto text-slate-900 dark:text-slate-100 prose dark:prose-invert prose-sm max-w-none prose-p:text-slate-900 dark:prose-p:text-slate-100 prose-headings:text-slate-950 dark:prose-headings:text-white prose-li:text-slate-900 dark:prose-li:text-slate-100 prose-strong:text-slate-950 dark:prose-strong:text-white">
           {content.trim() ? (
             <ReactMarkdown
               components={{
@@ -136,7 +139,9 @@ export default function NotesEditor({ taskId, title = 'Notes' }: NotesEditorProp
               {renderableMarkdown}
             </ReactMarkdown>
           ) : (
-            <span className="text-xs text-slate-400 italic">No notes written yet. Switch to Edit to write notes.</span>
+            <span className="text-xs text-slate-400 italic">
+              No notes written yet. Switch to Edit tab to write notes.
+            </span>
           )}
         </div>
       )}

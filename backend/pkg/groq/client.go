@@ -159,11 +159,16 @@ func (c *client) CreateChatCompletion(ctx context.Context, systemPrompt, userPro
 			{Role: "user", Content: userPrompt},
 		},
 		Temperature: 0.2, // Low temperature for consistent structured breakdown
-		ResponseFormat: &struct {
+	}
+
+	// Only enforce json_object format if the prompt explicitly requests JSON,
+	// otherwise Groq rejects the request with a 400 error.
+	if strings.Contains(strings.ToLower(systemPrompt), "json") || strings.Contains(strings.ToLower(userPrompt), "json") {
+		reqBody.ResponseFormat = &struct {
 			Type string `json:"type"`
 		}{
 			Type: "json_object",
-		},
+		}
 	}
 
 	reqBytes, err := json.Marshal(reqBody)

@@ -27,6 +27,7 @@ type DailyLogItem struct {
 type LogService interface {
 	GetDailyLogs(from, to *time.Time, projectID *uuid.UUID) ([]DailyLogItem, error)
 	GenerateExcelExport(from, to *time.Time, projectID *uuid.UUID) ([]byte, error)
+	TriggerAutoArchive() (int64, error)
 }
 
 type logService struct {
@@ -144,4 +145,15 @@ func (s *logService) GenerateExcelExport(from, to *time.Time, projectID *uuid.UU
 	}
 
 	return buf.Bytes(), nil
+}
+
+func (s *logService) TriggerAutoArchive() (int64, error) {
+	threshold := time.Now().UTC().AddDate(0, 0, -14)
+	now := time.Now().UTC()
+
+	result := s.db.Exec(
+		"UPDATE tasks SET is_archived = true, archived_at = ? WHERE status = 'done' AND is_archived = false AND updated_at < ?",
+		now, threshold,
+	)
+	return result.RowsAffected, result.Error
 }

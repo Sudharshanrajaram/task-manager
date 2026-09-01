@@ -22,13 +22,28 @@ export const logsApi = {
       })
       .then((r) => r.data.logs ?? []),
 
-  getExportUrl: (from?: string, to?: string, projectId?: string) => {
-    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-    const params = new URLSearchParams()
-    if (from) params.set('from', from)
-    if (to) params.set('to', to)
-    if (projectId) params.set('project_id', projectId)
-    params.set('format', 'xlsx')
-    return `${baseURL}/api/logs/export?${params.toString()}`
+  downloadExcel: async (from?: string, to?: string, projectId?: string) => {
+    const response = await apiClient.get('/logs/export', {
+      params: { from, to, project_id: projectId, format: 'xlsx' },
+      responseType: 'blob',
+    })
+
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute(
+      'download',
+      `taskflow-activity-${new Date().toISOString().split('T')[0]}.xlsx`
+    )
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
   },
+
+  triggerArchive: () =>
+    apiClient.post<{ message: string; archived_count: number }>('/logs/archive-trigger').then((r) => r.data),
 }

@@ -22,3 +22,4 @@ export const notesApi = {
   saveScratchpad: (content: string) =>
     apiClient.put<Note>('/notes/scratchpad', { content }).then((r) => r.data),
 }
+

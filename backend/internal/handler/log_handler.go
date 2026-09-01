@@ -55,6 +55,20 @@ func (h *LogHandler) ExportExcel(c *gin.Context) {
 	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", excelBytes)
 }
 
+// TriggerArchive handles POST /api/logs/archive-trigger
+func (h *LogHandler) TriggerArchive(c *gin.Context) {
+	count, err := h.logService.TriggerAutoArchive()
+	if err != nil {
+		RespondWithError(c, http.StatusInternalServerError, "Failed to execute auto-archive")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Auto-archive execution completed",
+		"archived_count": count,
+	})
+}
+
 func parseLogFilters(c *gin.Context) (*time.Time, *time.Time, *uuid.UUID, error) {
 	var from *time.Time
 	var to *time.Time

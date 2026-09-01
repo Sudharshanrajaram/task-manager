@@ -16,3 +16,4 @@ export const authApi = {
 
   me: () => apiClient.get<{ user: User }>('/auth/me').then((r) => r.data.user),
 }
+

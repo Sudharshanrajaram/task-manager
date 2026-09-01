@@ -26,3 +26,4 @@ export const dependenciesApi = {
   remove: (taskId: string, depId: string) =>
     apiClient.delete(`/tasks/${taskId}/dependencies/${depId}`),
 }
+

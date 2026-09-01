@@ -1,30 +1,36 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { logsApi } from '../api/logs'
 import { projectsApi } from '../api/projects'
 import { Link } from 'react-router-dom'
 import { formatDuration } from '../lib/utils'
-import { Calendar, Download, Filter, Clock } from 'lucide-react'
+import { Calendar, Download, Filter, Clock, Archive, Loader2, AlertCircle } from 'lucide-react'
 
 export default function DailyLogs() {
+  const queryClient = useQueryClient()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
-  const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'all'>('week')
+  const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'all'>('all')
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   // Calculate from & to dates based on filter
   const today = new Date().toISOString().split('T')[0]
   let fromDate: string | undefined = undefined
-  const toDate = today
+  let toDate: string | undefined = undefined
 
   if (dateRange === 'today') {
     fromDate = today
+    toDate = today
   } else if (dateRange === 'week') {
     const d = new Date()
     d.setDate(d.getDate() - 7)
     fromDate = d.toISOString().split('T')[0]
+    toDate = today
   } else if (dateRange === 'month') {
     const d = new Date()
     d.setDate(d.getDate() - 30)
     fromDate = d.toISOString().split('T')[0]
+    toDate = today
   }
 
   const { data: projects = [] } = useQuery({
@@ -37,8 +43,27 @@ export default function DailyLogs() {
     queryFn: () => logsApi.getDaily(fromDate, toDate, selectedProjectId || undefined),
   })
 
+  const { mutate: triggerArchive, isPending: isArchiving } = useMutation({
+    mutationFn: logsApi.triggerArchive,
+    onSuccess: (data) => {
+      alert(`Auto-archiver executed! ${data.archived_count} completed tasks older than 14 days were archived.`)
+      queryClient.invalidateQueries({ queryKey: ['daily-logs'] })
+    },
+  })
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true)
+      setExportError(null)
+      await logsApi.downloadExcel(fromDate, toDate, selectedProjectId || undefined)
+    } catch (err) {
+      setExportError((err as Error).message || 'Failed to download Excel file')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const totalSeconds = logs.reduce((acc, l) => acc + l.total_duration_seconds, 0)
-  const exportUrl = logsApi.getExportUrl(fromDate, toDate, selectedProjectId || undefined)
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -55,17 +80,43 @@ export default function DailyLogs() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-3">
-          <a
-            href={exportUrl}
-            download
-            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all"
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => triggerArchive()}
+            disabled={isArchiving}
+            title="Manual trigger for 14-day Done task auto-archiver worker"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export to Excel (.xlsx)</span>
-          </a>
+            <Archive className="w-3.5 h-3.5 text-amber-500" />
+            <span>{isArchiving ? 'Archiving...' : 'Run Auto-Archiver'}</span>
+          </button>
+
+          <button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all disabled:opacity-50"
+          >
+            {isExporting ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Exporting...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                <span>Export to Excel (.xlsx)</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
+
+      {exportError && (
+        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-600 dark:text-red-400 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{exportError}</span>
+        </div>
+      )}
 
       {/* Filter Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -74,7 +125,7 @@ export default function DailyLogs() {
             <Filter className="w-3 h-3" />
             Time Range:
           </span>
-          {(['today', 'week', 'month', 'all'] as const).map((r) => (
+          {(['all', 'today', 'week', 'month'] as const).map((r) => (
             <button
               key={r}
               onClick={() => setDateRange(r)}
@@ -84,7 +135,7 @@ export default function DailyLogs() {
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              {r === 'today' ? 'Today' : r === 'week' ? 'Past 7 Days' : r === 'month' ? 'Past 30 Days' : 'All Time'}
+              {r === 'all' ? 'All Time' : r === 'today' ? 'Today' : r === 'week' ? 'Past 7 Days' : 'Past 30 Days'}
             </button>
           ))}
         </div>
@@ -106,7 +157,7 @@ export default function DailyLogs() {
         </div>
       </div>
 
-      {/* Summary Stat */}
+      {/* Summary Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
           <span className="text-xs text-slate-400 font-medium">Total Time Tracked</span>
@@ -124,9 +175,9 @@ export default function DailyLogs() {
           </div>
         </div>
         <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <span className="text-xs text-slate-400 font-medium">Auto-Archiving Status</span>
+          <span className="text-xs text-slate-400 font-medium">Auto-Archiving Worker</span>
           <div className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">
-            Active (Tasks &gt;14d auto-archived)
+            Active · Daily 24h ticker
           </div>
         </div>
       </div>

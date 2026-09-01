@@ -44,7 +44,7 @@ func TestLogService_DailyLogsAndExcelExport(t *testing.T) {
 		ID:              uuid.New(),
 		TaskID:          task.ID,
 		StartedAt:       start,
-		StoppedAt:       &now,
+		EndedAt:         &now,
 		DurationSeconds: 1800,
 		IsRunning:       false,
 	}

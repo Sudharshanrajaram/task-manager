@@ -12,3 +12,4 @@ export const analyticsApi = {
       })
       .then((r) => r.data),
 }
+
