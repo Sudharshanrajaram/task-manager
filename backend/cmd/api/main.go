@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/taskflow/backend/internal/config"
 	"github.com/taskflow/backend/internal/db"
 	"github.com/taskflow/backend/internal/handler"
 	"github.com/taskflow/backend/internal/middleware"
 	"github.com/taskflow/backend/internal/repository"
 	"github.com/taskflow/backend/internal/service"
+	"github.com/taskflow/backend/internal/ws"
 	"github.com/taskflow/backend/pkg/groq"
 	"github.com/taskflow/backend/pkg/logger"
 )
@@ -69,7 +71,30 @@ func main() {
 		slog.Warn("Failed to recover in-flight timers", slog.String("error", err.Error()))
 	}
 
-	// 7. Initialize Handlers
+	// 7. Initialize External Cache / Pub-Sub (Redis)
+	var redisClient *redis.Client
+	if cfg.Redis.Host != "" {
+		rClient := redis.NewClient(&redis.Options{
+			Addr:     cfg.Redis.Addr(),
+			Password: cfg.Redis.Password,
+			DB:       0,
+		})
+		pingCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		if err := rClient.Ping(pingCtx).Err(); err == nil {
+			redisClient = rClient
+			slog.Info("Connected to Redis for pub/sub timer sync", slog.String("addr", cfg.Redis.Addr()))
+		} else {
+			slog.Info("Redis not active, using in-memory channel bridge for WebSockets")
+			_ = rClient.Close()
+		}
+		cancel()
+	}
+
+	// 8. Initialize Realtime WebSocket Hub
+	wsHub := ws.NewHub(timerManager, redisClient, cfg.Server.AllowedOrigins)
+	go wsHub.Run(context.Background())
+
+	// 9. Initialize Handlers
 	healthHandler := handler.NewHealthHandler(cfg.Server.Env, AppVersion)
 	projectHandler := handler.NewProjectHandler(projectService)
 	taskHandler := handler.NewTaskHandler(taskService)
@@ -77,21 +102,22 @@ func main() {
 	timerHandler := handler.NewTimerHandler(timerManager)
 	ragHandler := handler.NewRAGHandler(ragService, taskService, subtaskRepo)
 
-	// 8. Set Gin mode
+	// 10. Set Gin mode
 	if cfg.Server.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
 		gin.SetMode(gin.DebugMode)
 	}
 
-	// 9. Setup Gin engine & middlewares
+	// 11. Setup Gin engine & middlewares
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(middleware.RequestLogger())
 	router.Use(middleware.CORS(cfg.Server.AllowedOrigins))
 
-	// 10. Register routes
+	// 12. Register routes
 	router.GET("/health", healthHandler.Check)
+	router.GET("/ws/timers", wsHub.HandleWebSocket)
 
 	api := router.Group("/api")
 	{
@@ -114,6 +140,8 @@ func main() {
 		api.GET("/tasks/:id", taskHandler.GetByIDOrKey)
 		api.PATCH("/tasks/:id", taskHandler.Update)
 		api.DELETE("/tasks/:id", taskHandler.Delete)
+		api.PATCH("/tasks/:id/block", taskHandler.Block)
+		api.POST("/tasks/:id/archive", taskHandler.Archive)
 
 		// Subtasks
 		api.POST("/tasks/:id/subtasks", subtaskHandler.Create)

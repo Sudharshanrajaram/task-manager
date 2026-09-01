@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"math"
 	"math/rand"
 	"net/http"
@@ -84,9 +83,9 @@ func (c *client) CreateEmbedding(ctx context.Context, input string) ([]float32, 
 		return nil, errors.New("cannot create embedding for empty input")
 	}
 
-	// If no API key is provided, use deterministic feature-hashing embedding (Mock/Offline mode)
+	// Require GROQ_API_KEY to be set
 	if c.apiKey == "" || c.apiKey == "your_groq_api_key_here" {
-		return generateDeterministicEmbedding(input, EmbeddingDimension), nil
+		return nil, errors.New("GROQ_API_KEY is not configured. Please set your key in backend/.env to use AI subtask suggestions (get a free key at https://console.groq.com)")
 	}
 
 	reqBody := embeddingRequest{
@@ -101,8 +100,7 @@ func (c *client) CreateEmbedding(ctx context.Context, input string) ([]float32, 
 	var respData embeddingResponse
 	err = c.doWithRetry(ctx, "/embeddings", reqBytes, &respData)
 	if err != nil {
-		slog.Warn("Groq embedding API failed, falling back to local deterministic embedding", slog.String("error", err.Error()))
-		return generateDeterministicEmbedding(input, EmbeddingDimension), nil
+		return nil, fmt.Errorf("groq embedding request failed: %w", err)
 	}
 
 	if respData.Error != nil {
@@ -149,9 +147,9 @@ type chatResponse struct {
 }
 
 func (c *client) CreateChatCompletion(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
-	// If no API key is provided, use deterministic mock subtask generator
+	// Require GROQ_API_KEY to be set
 	if c.apiKey == "" || c.apiKey == "your_groq_api_key_here" {
-		return generateMockSubtasksJSON(userPrompt), nil
+		return "", errors.New("GROQ_API_KEY is not configured. Please set your key in backend/.env to use AI subtask suggestions (get a free key at https://console.groq.com)")
 	}
 
 	reqBody := chatRequest{
@@ -176,8 +174,7 @@ func (c *client) CreateChatCompletion(ctx context.Context, systemPrompt, userPro
 	var respData chatResponse
 	err = c.doWithRetry(ctx, "/chat/completions", reqBytes, &respData)
 	if err != nil {
-		slog.Warn("Groq chat API failed, falling back to local decomposition", slog.String("error", err.Error()))
-		return generateMockSubtasksJSON(userPrompt), nil
+		return "", fmt.Errorf("groq chat completion request failed: %w", err)
 	}
 
 	if respData.Error != nil {
@@ -255,12 +252,8 @@ func (c *client) doWithRetry(ctx context.Context, path string, reqBody []byte, t
 	return fmt.Errorf("max retries exceeded: %w", lastErr)
 }
 
-// ---------------------------
-// Deterministic Mock & Feature-Hashing Fallbacks
-// ---------------------------
-
-// generateDeterministicEmbedding creates a normalized 1536-dim vector based on text tokens and character n-grams
-func generateDeterministicEmbedding(text string, dim int) []float32 {
+// GenerateDeterministicEmbedding creates a normalized 1536-dim vector based on text tokens and character n-grams (utility/test helper)
+func GenerateDeterministicEmbedding(text string, dim int) []float32 {
 	vector := make([]float32, dim)
 	text = strings.ToLower(strings.TrimSpace(text))
 	words := strings.Fields(text)
@@ -322,45 +315,4 @@ func CosineSimilarity(a, b []float32) float32 {
 	}
 
 	return float32(dot / (math.Sqrt(normA) * math.Sqrt(normB)))
-}
-
-func generateMockSubtasksJSON(prompt string) string {
-	lower := strings.ToLower(prompt)
-	var subtasks []string
-
-	switch {
-	case strings.Contains(lower, "auth") || strings.Contains(lower, "login") || strings.Contains(lower, "oauth"):
-		subtasks = []string{
-			"Register OAuth application and configure credentials",
-			"Implement authorization redirect and callback handler",
-			"Validate state token and exchange code for access token",
-			"Persist user profile and issue session JWT",
-			"Write integration tests for OAuth login flow",
-		}
-	case strings.Contains(lower, "stripe") || strings.Contains(lower, "payment") || strings.Contains(lower, "bill"):
-		subtasks = []string{
-			"Configure Stripe API keys and webhook secrets",
-			"Create checkout session endpoint with line items",
-			"Handle invoice.paid and payment_intent.succeeded webhooks",
-			"Update customer subscription status in database",
-			"Test end-to-end webhook handling with Stripe CLI",
-		}
-	case strings.Contains(lower, "database") || strings.Contains(lower, "postgres") || strings.Contains(lower, "migrat"):
-		subtasks = []string{
-			"Define database schema and table constraints",
-			"Write migration scripts with rollback support",
-			"Configure connection pooling and timeout settings",
-			"Add indexes for high-frequency query fields",
-		}
-	default:
-		subtasks = []string{
-			"Research requirements and design technical approach",
-			"Implement core business logic and service layer",
-			"Add comprehensive unit and integration tests",
-			"Review implementation and update documentation",
-		}
-	}
-
-	data, _ := json.Marshal(map[string][]string{"subtasks": subtasks})
-	return string(data)
 }

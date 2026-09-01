@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useTimerStore } from './store/timerStore'
 import { timersApi } from './api/timers'
+import { useTimerWebSocket } from './hooks/useTimerWebSocket'
 import Layout from './components/layout/Layout'
 import CommandPalette from './components/command/CommandPalette'
 import Dashboard from './pages/Dashboard'
@@ -12,7 +13,10 @@ import FocusMode from './pages/FocusMode'
 export default function App() {
   const { setActiveTimers, tickAll } = useTimerStore()
 
-  // Poll active timers every 10s and tick locally every second
+  // Realtime WebSocket sync across all open tabs & devices
+  useTimerWebSocket()
+
+  // Poll active timers every 15s as fallback and tick locally every second
   useEffect(() => {
     const syncTimers = async () => {
       try {

@@ -17,7 +17,7 @@ export interface CreateProjectInput {
 
 // Task
 export type TaskType = 'task' | 'bug' | 'improvement' | 'spike'
-export type TaskStatus = 'backlog' | 'in_progress' | 'blocked' | 'review' | 'done'
+export type TaskStatus = 'backlog' | 'in_progress' | 'review' | 'done'
 export type TaskPriority = 'p0' | 'p1' | 'p2' | 'p3'
 
 export interface Task {
@@ -31,6 +31,11 @@ export interface Task {
   status: TaskStatus
   priority: TaskPriority
   labels: string[]
+  is_blocked?: boolean
+  blocked_reason?: string
+  is_archived?: boolean
+  archived_at?: string
+  ai_summary?: string
   steps_to_reproduce?: string
   severity?: string
   environment?: string

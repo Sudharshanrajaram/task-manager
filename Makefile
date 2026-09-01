@@ -16,3 +16,4 @@ build:
 
 test:
 	cd backend && go test -v -race ./...
+

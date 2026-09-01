@@ -78,9 +78,9 @@ export default function TaskBoard() {
         </button>
       </div>
 
-      {/* Kanban Columns */}
+      {/* Kanban Columns (4 columns per spec 1.1) */}
       {isLoading ? (
-        <div className="grid grid-cols-5 gap-4 flex-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
           {STATUS_ORDER.map((s) => (
             <div
               key={s}
@@ -89,7 +89,7 @@ export default function TaskBoard() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 flex-1 items-start overflow-x-auto pb-4 scrollbar-thin">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 flex-1 items-start overflow-x-auto pb-4 scrollbar-thin">
           {STATUS_ORDER.map((status: TaskStatus) => {
             const columnTasks = tasks.filter((t) => t.status === status)
             const config = STATUS_CONFIG[status]
@@ -140,3 +140,4 @@ export default function TaskBoard() {
     </div>
   )
 }
+

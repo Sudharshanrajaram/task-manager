@@ -10,6 +10,16 @@ import (
 	"github.com/taskflow/backend/pkg/groq"
 )
 
+type mockGroqClient struct{}
+
+func (m *mockGroqClient) CreateEmbedding(ctx context.Context, input string) ([]float32, error) {
+	return groq.GenerateDeterministicEmbedding(input, groq.EmbeddingDimension), nil
+}
+
+func (m *mockGroqClient) CreateChatCompletion(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	return `{"subtasks": ["Step 1: Design architecture", "Step 2: Implement logic", "Step 3: Write tests", "Step 4: Deploy"]}`, nil
+}
+
 func setupRAGTestEnvironment(t *testing.T) (service.RAGService, service.ProjectService, repository.EmbeddingRepository) {
 	testDB, err := db.InitTestDB()
 	if err != nil {
@@ -18,7 +28,7 @@ func setupRAGTestEnvironment(t *testing.T) (service.RAGService, service.ProjectS
 
 	projectRepo := repository.NewProjectRepository(testDB)
 	embeddingRepo := repository.NewEmbeddingRepository(testDB)
-	groqClient := groq.NewClient("", "", "")
+	groqClient := &mockGroqClient{}
 
 	projSvc := service.NewProjectService(projectRepo)
 	ragSvc := service.NewRAGService(groqClient, embeddingRepo)

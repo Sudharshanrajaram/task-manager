@@ -196,3 +196,59 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Task deleted successfully"})
 }
+
+// Block handles PATCH /api/tasks/:id/block
+func (h *TaskHandler) Block(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		RespondWithError(c, http.StatusBadRequest, "Invalid task ID format (must be UUID)")
+		return
+	}
+
+	var req BlockTaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondWithError(c, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+
+	task, err := h.service.BlockTask(id, req.IsBlocked, req.BlockedReason)
+	if err != nil {
+		if errors.Is(err, service.ErrTaskNotFound) {
+			RespondWithError(c, http.StatusNotFound, "Task not found")
+			return
+		}
+		RespondWithError(c, http.StatusInternalServerError, "Failed to update task blocked status")
+		return
+	}
+
+	c.JSON(http.StatusOK, task)
+}
+
+// Archive handles POST /api/tasks/:id/archive
+func (h *TaskHandler) Archive(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		RespondWithError(c, http.StatusBadRequest, "Invalid task ID format (must be UUID)")
+		return
+	}
+
+	isArchived := true
+	var req ArchiveTaskRequest
+	if err := c.ShouldBindJSON(&req); err == nil && req.IsArchived != nil {
+		isArchived = *req.IsArchived
+	}
+
+	task, err := h.service.ArchiveTask(id, isArchived)
+	if err != nil {
+		if errors.Is(err, service.ErrTaskNotFound) {
+			RespondWithError(c, http.StatusNotFound, "Task not found")
+			return
+		}
+		RespondWithError(c, http.StatusInternalServerError, "Failed to update task archive status")
+		return
+	}
+
+	c.JSON(http.StatusOK, task)
+}

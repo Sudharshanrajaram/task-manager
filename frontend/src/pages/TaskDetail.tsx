@@ -67,6 +67,28 @@ export default function TaskDetail() {
     },
   })
 
+  const { mutate: toggleBlock } = useMutation({
+    mutationFn: ({ isBlocked, reason }: { isBlocked: boolean; reason?: string }) =>
+      taskId ? tasksApi.block(taskId, isBlocked, reason) : Promise.reject(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] })
+      if (task?.project_id) {
+        queryClient.invalidateQueries({ queryKey: ['tasks', task.project_id] })
+      }
+    },
+  })
+
+  const { mutate: toggleArchive } = useMutation({
+    mutationFn: (isArchived: boolean) =>
+      taskId ? tasksApi.archive(taskId, isArchived) : Promise.reject(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] })
+      if (task?.project_id) {
+        queryClient.invalidateQueries({ queryKey: ['tasks', task.project_id] })
+      }
+    },
+  })
+
   const { mutate: deleteTask } = useMutation({
     mutationFn: () => (taskId ? tasksApi.delete(taskId) : Promise.reject()),
     onSuccess: () => {
@@ -146,6 +168,38 @@ export default function TaskDetail() {
 
         {/* Header Actions */}
         <div className="flex items-center gap-2">
+          {task.is_blocked ? (
+            <button
+              onClick={() => toggleBlock({ isBlocked: false })}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+            >
+              Unblock Task
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                const reason = prompt('Enter reason for blocking (optional):')
+                if (reason !== null) {
+                  toggleBlock({ isBlocked: true, reason: reason.trim() })
+                }
+              }}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
+            >
+              ⚠ Block Task
+            </button>
+          )}
+
+          <button
+            onClick={() => toggleArchive(!task.is_archived)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 transition-colors ${
+              task.is_archived
+                ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            {task.is_archived ? 'Unarchive' : 'Archive'}
+          </button>
+
           <Link
             to={`/tasks/${task.id}/focus`}
             className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
@@ -168,6 +222,21 @@ export default function TaskDetail() {
 
       {/* Main Ticket Card */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm mb-6">
+        {/* Blocked Alert Banner if task is blocked */}
+        {task.is_blocked && (
+          <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
+              <span className="font-bold">⚠ Blocked:</span>
+              <span>{task.blocked_reason || 'No reason specified'}</span>
+            </div>
+            <button
+              onClick={() => toggleBlock({ isBlocked: false })}
+              className="text-xs font-medium underline text-amber-700 hover:text-amber-900 dark:text-amber-300"
+            >
+              Remove blocker
+            </button>
+          </div>
+        )}
         {/* Title row */}
         <div className="mb-4">
           {isEditingTitle ? (
@@ -414,3 +483,4 @@ export default function TaskDetail() {
     </div>
   )
 }
+

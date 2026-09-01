@@ -3,6 +3,7 @@ package groq_test
 import (
 	"context"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/taskflow/backend/pkg/groq"
@@ -31,19 +32,10 @@ func TestCosineSimilarity(t *testing.T) {
 	}
 }
 
-func TestDeterministicEmbeddings(t *testing.T) {
-	client := groq.NewClient("", "", "")
-	ctx := context.Background()
-
+func TestGenerateDeterministicEmbedding(t *testing.T) {
 	// Same text should produce identical vectors
-	vec1, err := client.CreateEmbedding(ctx, "Configure PostgreSQL Database Connection")
-	if err != nil {
-		t.Fatalf("CreateEmbedding failed: %v", err)
-	}
-	vec2, err := client.CreateEmbedding(ctx, "Configure PostgreSQL Database Connection")
-	if err != nil {
-		t.Fatalf("CreateEmbedding failed: %v", err)
-	}
+	vec1 := groq.GenerateDeterministicEmbedding("Configure PostgreSQL Database Connection", groq.EmbeddingDimension)
+	vec2 := groq.GenerateDeterministicEmbedding("Configure PostgreSQL Database Connection", groq.EmbeddingDimension)
 
 	if len(vec1) != groq.EmbeddingDimension {
 		t.Errorf("Expected vector dimension %d, got %d", groq.EmbeddingDimension, len(vec1))
@@ -55,8 +47,8 @@ func TestDeterministicEmbeddings(t *testing.T) {
 	}
 
 	// Related text should have higher similarity than unrelated text
-	vecRelated, _ := client.CreateEmbedding(ctx, "Setup Postgres DB Migrations")
-	vecUnrelated, _ := client.CreateEmbedding(ctx, "Fix CSS Navbar Padding on Mobile Safari")
+	vecRelated := groq.GenerateDeterministicEmbedding("Setup Postgres DB Migrations", groq.EmbeddingDimension)
+	vecUnrelated := groq.GenerateDeterministicEmbedding("Fix CSS Navbar Padding on Mobile Safari", groq.EmbeddingDimension)
 
 	simRelated := groq.CosineSimilarity(vec1, vecRelated)
 	simUnrelated := groq.CosineSimilarity(vec1, vecUnrelated)
@@ -66,16 +58,25 @@ func TestDeterministicEmbeddings(t *testing.T) {
 	}
 }
 
-func TestChatCompletionFallback(t *testing.T) {
+func TestLoudFailureWithoutAPIKey(t *testing.T) {
 	client := groq.NewClient("", "", "")
 	ctx := context.Background()
 
-	resp, err := client.CreateChatCompletion(ctx, "system prompt", "Setup OAuth authentication flow")
-	if err != nil {
-		t.Fatalf("CreateChatCompletion failed: %v", err)
+	// Embedding must fail loudly
+	_, err := client.CreateEmbedding(ctx, "Test Task Title")
+	if err == nil {
+		t.Fatal("Expected CreateEmbedding to fail loudly when GROQ_API_KEY is not set")
+	}
+	if !strings.Contains(err.Error(), "GROQ_API_KEY is not configured") {
+		t.Errorf("Expected loud GROQ_API_KEY error message, got: %v", err)
 	}
 
-	if resp == "" {
-		t.Fatal("Expected non-empty response")
+	// Chat completion must fail loudly
+	_, err = client.CreateChatCompletion(ctx, "system prompt", "user prompt")
+	if err == nil {
+		t.Fatal("Expected CreateChatCompletion to fail loudly when GROQ_API_KEY is not set")
+	}
+	if !strings.Contains(err.Error(), "GROQ_API_KEY is not configured") {
+		t.Errorf("Expected loud GROQ_API_KEY error message, got: %v", err)
 	}
 }

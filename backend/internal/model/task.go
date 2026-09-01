@@ -21,7 +21,6 @@ type TaskStatus string
 const (
 	StatusBacklog    TaskStatus = "backlog"
 	StatusInProgress TaskStatus = "in_progress"
-	StatusBlocked    TaskStatus = "blocked"
 	StatusReview     TaskStatus = "review"
 	StatusDone       TaskStatus = "done"
 )
@@ -55,6 +54,19 @@ type Task struct {
 	Status       TaskStatus   `gorm:"type:varchar(20);not null;default:'backlog'" json:"status"`
 	Priority     TaskPriority `gorm:"type:varchar(10);not null;default:'p2'" json:"priority"`
 	Labels       StringArray  `gorm:"type:text" json:"labels"`
+
+	// Blocking status (independent attribute per spec 1.1)
+	IsBlocked     bool    `gorm:"default:false;index" json:"is_blocked"`
+	BlockedReason *string `gorm:"type:text" json:"blocked_reason,omitempty"`
+
+	// Archiving (per spec 1.10)
+	IsArchived bool       `gorm:"default:false;index" json:"is_archived"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+
+	// Task summary "ask" bar (per spec 1.9)
+	AISummary            *string    `gorm:"type:text" json:"ai_summary,omitempty"`
+	AISummarySourceHash  *string    `gorm:"type:varchar(64)" json:"ai_summary_source_hash,omitempty"`
+	AISummaryGeneratedAt *time.Time `json:"ai_summary_generated_at,omitempty"`
 
 	// Bug-specific fields
 	StepsToReproduce *string      `gorm:"type:text" json:"steps_to_reproduce,omitempty"`

@@ -102,11 +102,18 @@ func AutoMigrate(database *gorm.DB, isPostgres bool) error {
 		_ = database.Exec("CREATE EXTENSION IF NOT EXISTS vector").Error
 	}
 
-	return database.AutoMigrate(
+	if err := database.AutoMigrate(
 		&model.Project{},
 		&model.Task{},
 		&model.Subtask{},
 		&model.TimeEntry{},
 		&model.TaskTitleEmbedding{},
-	)
+	); err != nil {
+		return err
+	}
+
+	// Data migration: Retrofit any legacy 'blocked' status tasks to 'in_progress' with is_blocked = true
+	_ = database.Exec("UPDATE tasks SET status = 'in_progress', is_blocked = true, blocked_reason = COALESCE(blocked_reason, 'Migrated from blocked status') WHERE status = 'blocked'").Error
+
+	return nil
 }

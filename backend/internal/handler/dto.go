@@ -42,6 +42,15 @@ type UpdateTaskRequest struct {
 	Environment      *string            `json:"environment"`
 }
 
+type BlockTaskRequest struct {
+	IsBlocked     bool   `json:"is_blocked"`
+	BlockedReason string `json:"blocked_reason"`
+}
+
+type ArchiveTaskRequest struct {
+	IsArchived *bool `json:"is_archived"`
+}
+
 type CreateSubtaskRequest struct {
 	Title string `json:"title" binding:"required"`
 }

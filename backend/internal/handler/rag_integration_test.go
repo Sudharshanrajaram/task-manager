@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,6 +18,16 @@ import (
 	"github.com/taskflow/backend/pkg/groq"
 )
 
+type mockGroqClient struct{}
+
+func (m *mockGroqClient) CreateEmbedding(ctx context.Context, input string) ([]float32, error) {
+	return groq.GenerateDeterministicEmbedding(input, groq.EmbeddingDimension), nil
+}
+
+func (m *mockGroqClient) CreateChatCompletion(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	return `{"subtasks": ["Step 1: Setup keys", "Step 2: Implement webhooks", "Step 3: Test flow"]}`, nil
+}
+
 func setupRAGTestRouter(t *testing.T) (*gin.Engine, service.ProjectService, service.TaskService) {
 	gin.SetMode(gin.TestMode)
 
@@ -30,7 +41,7 @@ func setupRAGTestRouter(t *testing.T) (*gin.Engine, service.ProjectService, serv
 	subtaskRepo := repository.NewSubtaskRepository(testDB)
 	embeddingRepo := repository.NewEmbeddingRepository(testDB)
 
-	groqClient := groq.NewClient("", "", "")
+	groqClient := &mockGroqClient{}
 
 	projSvc := service.NewProjectService(projectRepo)
 	taskSvc := service.NewTaskService(taskRepo, projectRepo, subtaskRepo)

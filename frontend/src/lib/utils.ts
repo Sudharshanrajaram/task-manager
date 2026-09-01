@@ -39,13 +39,17 @@ export function formatRelativeTime(isoString: string): string {
   return `${diffDays}d ago`
 }
 
-// Status display config
+// Status display config (4 columns per spec 1.1)
 export const STATUS_CONFIG: Record<TaskStatus, { label: string; className: string }> = {
   backlog: { label: 'Backlog', className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
   in_progress: { label: 'In Progress', className: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' },
-  blocked: { label: 'Blocked', className: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400' },
   review: { label: 'Review', className: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300' },
   done: { label: 'Done', className: 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400' },
+}
+
+export const BLOCKED_CONFIG = {
+  label: 'Blocked',
+  badge: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80',
 }
 
 // Priority display config
@@ -64,4 +68,4 @@ export const TYPE_CONFIG: Record<TaskType, { label: string; className: string }>
   spike: { label: 'Spike', className: 'bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300' },
 }
 
-export const STATUS_ORDER: TaskStatus[] = ['backlog', 'in_progress', 'blocked', 'review', 'done']
+export const STATUS_ORDER: TaskStatus[] = ['backlog', 'in_progress', 'review', 'done']

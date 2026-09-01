@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/taskflow/backend/internal/model"
@@ -43,6 +44,8 @@ type TaskService interface {
 	GetTaskByTicketKey(ticketKey string) (*model.Task, error)
 	UpdateTask(id uuid.UUID, input UpdateTaskInput) (*model.Task, error)
 	DeleteTask(id uuid.UUID) error
+	BlockTask(id uuid.UUID, isBlocked bool, reason string) (*model.Task, error)
+	ArchiveTask(id uuid.UUID, isArchived bool) (*model.Task, error)
 }
 
 type taskService struct {
@@ -84,7 +87,7 @@ func (s *taskService) CreateTask(input CreateTaskInput) (*model.Task, error) {
 		input.Status = model.StatusBacklog
 	}
 	switch input.Status {
-	case model.StatusBacklog, model.StatusInProgress, model.StatusBlocked, model.StatusReview, model.StatusDone:
+	case model.StatusBacklog, model.StatusInProgress, model.StatusReview, model.StatusDone:
 	default:
 		return nil, ErrInvalidTaskStatus
 	}
@@ -263,7 +266,7 @@ func (s *taskService) UpdateTask(id uuid.UUID, input UpdateTaskInput) (*model.Ta
 
 	if input.Status != nil {
 		switch *input.Status {
-		case model.StatusBacklog, model.StatusInProgress, model.StatusBlocked, model.StatusReview, model.StatusDone:
+		case model.StatusBacklog, model.StatusInProgress, model.StatusReview, model.StatusDone:
 			task.Status = *input.Status
 		default:
 			return nil, ErrInvalidTaskStatus
@@ -321,4 +324,54 @@ func (s *taskService) DeleteTask(id uuid.UUID) error {
 	}
 
 	return s.taskRepo.Delete(id)
+}
+
+func (s *taskService) BlockTask(id uuid.UUID, isBlocked bool, reason string) (*model.Task, error) {
+	task, err := s.taskRepo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if task == nil {
+		return nil, ErrTaskNotFound
+	}
+
+	task.IsBlocked = isBlocked
+	if isBlocked {
+		reason = strings.TrimSpace(reason)
+		if reason != "" {
+			task.BlockedReason = &reason
+		}
+	} else {
+		task.BlockedReason = nil
+	}
+
+	if err := s.taskRepo.Update(task); err != nil {
+		return nil, err
+	}
+
+	return task, nil
+}
+
+func (s *taskService) ArchiveTask(id uuid.UUID, isArchived bool) (*model.Task, error) {
+	task, err := s.taskRepo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if task == nil {
+		return nil, ErrTaskNotFound
+	}
+
+	task.IsArchived = isArchived
+	if isArchived {
+		now := time.Now().UTC()
+		task.ArchivedAt = &now
+	} else {
+		task.ArchivedAt = nil
+	}
+
+	if err := s.taskRepo.Update(task); err != nil {
+		return nil, err
+	}
+
+	return task, nil
 }

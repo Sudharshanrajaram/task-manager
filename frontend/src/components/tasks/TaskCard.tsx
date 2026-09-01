@@ -74,6 +74,21 @@ export default function TaskCard({ task, projectId }: TaskCardProps) {
         </div>
       </div>
 
+      {/* Blocked indicator (independent badge per spec 1.1) */}
+      {task.is_blocked && (
+        <div
+          title={task.blocked_reason ? `Blocked: ${task.blocked_reason}` : 'Blocked'}
+          className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800/80 mb-2 w-fit"
+        >
+          <span>⚠ Blocked</span>
+          {task.blocked_reason && (
+            <span className="font-normal text-amber-700/80 dark:text-amber-300/80 max-w-[140px] truncate">
+              · {task.blocked_reason}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Task Title */}
       <Link
         to={`/tasks/${task.id}`}
@@ -122,3 +137,4 @@ export default function TaskCard({ task, projectId }: TaskCardProps) {
     </div>
   )
 }
+

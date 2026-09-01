@@ -11,4 +11,8 @@ export const tasksApi = {
   update: (id: string, input: UpdateTaskInput) =>
     apiClient.patch<Task>(`/tasks/${id}`, input).then((r) => r.data),
   delete: (id: string) => apiClient.delete(`/tasks/${id}`),
+  block: (id: string, isBlocked: boolean, reason?: string) =>
+    apiClient.patch<Task>(`/tasks/${id}/block`, { is_blocked: isBlocked, blocked_reason: reason }).then((r) => r.data),
+  archive: (id: string, isArchived: boolean = true) =>
+    apiClient.post<Task>(`/tasks/${id}/archive`, { is_archived: isArchived }).then((r) => r.data),
 }
