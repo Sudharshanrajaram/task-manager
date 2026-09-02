@@ -35,28 +35,28 @@ type UpdateProjectRequest struct {
 }
 
 type CreateTaskRequest struct {
-	Type             model.TaskType    `json:"type"`
-	Title            string            `json:"title" binding:"required"`
-	Description      string            `json:"description"`
-	Status           model.TaskStatus  `json:"status"`
-	Priority         model.TaskPriority`json:"priority"`
-	Labels           []string          `json:"labels"`
-	StepsToReproduce *string           `json:"steps_to_reproduce"`
-	Severity         *model.BugSeverity`json:"severity"`
-	Environment      *string           `json:"environment"`
-	InitialSubtasks  []string          `json:"initial_subtasks"`
-}
-
-type UpdateTaskRequest struct {
-	Title            *string            `json:"title"`
-	Description      *string            `json:"description"`
-	Type             *model.TaskType    `json:"type"`
-	Status           *model.TaskStatus  `json:"status"`
-	Priority         *model.TaskPriority`json:"priority"`
-	Labels           *[]string          `json:"labels"`
+	Type             model.TaskType     `json:"type"`
+	Title            string             `json:"title" binding:"required"`
+	Description      string             `json:"description"`
+	Status           model.TaskStatus   `json:"status"`
+	Priority         model.TaskPriority `json:"priority"`
+	Labels           []string           `json:"labels"`
 	StepsToReproduce *string            `json:"steps_to_reproduce"`
 	Severity         *model.BugSeverity `json:"severity"`
 	Environment      *string            `json:"environment"`
+	InitialSubtasks  []string           `json:"initial_subtasks"`
+}
+
+type UpdateTaskRequest struct {
+	Title            *string             `json:"title"`
+	Description      *string             `json:"description"`
+	Type             *model.TaskType     `json:"type"`
+	Status           *model.TaskStatus   `json:"status"`
+	Priority         *model.TaskPriority `json:"priority"`
+	Labels           *[]string           `json:"labels"`
+	StepsToReproduce *string             `json:"steps_to_reproduce"`
+	Severity         *model.BugSeverity  `json:"severity"`
+	Environment      *string             `json:"environment"`
 }
 
 type BlockTaskRequest struct {

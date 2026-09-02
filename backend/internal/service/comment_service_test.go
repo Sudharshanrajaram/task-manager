@@ -43,12 +43,12 @@ func TestCommentService_Flow(t *testing.T) {
 	assert.NoError(t, err)
 
 	task := &model.Task{
-		ProjectID:  proj.ID,
-		TicketKey:  "TEST-1",
-		Title:      "Initial Task",
-		Status:     model.StatusBacklog,
-		Priority:   model.PriorityP1,
-		Type:       model.TypeTask,
+		ProjectID: proj.ID,
+		TicketKey: "TEST-1",
+		Title:     "Initial Task",
+		Status:    model.StatusBacklog,
+		Priority:  model.PriorityP1,
+		Type:      model.TypeTask,
 	}
 	err = taskRepo.Create(nil, task)
 	assert.NoError(t, err)
