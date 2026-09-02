@@ -59,6 +59,7 @@ func main() {
 	embeddingRepo := repository.NewEmbeddingRepository(database)
 	noteRepo := repository.NewNoteRepository(database)
 	taskDepRepo := repository.NewTaskDependencyRepository(database)
+	commentRepo := repository.NewCommentRepository(database)
 
 	// 5. Initialize External Clients
 	groqClient := groq.NewClient(cfg.Groq.APIKey, cfg.Groq.ChatModel, cfg.Groq.EmbeddingModel)
@@ -73,6 +74,7 @@ func main() {
 	logService := service.NewLogService(database)
 	noteService := service.NewNoteService(noteRepo, taskRepo)
 	depService := service.NewTaskDependencyService(taskDepRepo, taskRepo)
+	commentService := service.NewCommentService(commentRepo, taskRepo)
 
 	// 7. Start Background Auto-Archiver (archives completed tasks older than 14 days)
 	worker.StartAutoArchiver(context.Background(), database, 24*time.Hour)
@@ -117,6 +119,7 @@ func main() {
 	logHandler := handler.NewLogHandler(logService)
 	noteHandler := handler.NewNoteHandler(noteService)
 	depHandler := handler.NewTaskDependencyHandler(depService)
+	commentHandler := handler.NewCommentHandler(commentService)
 
 	// 11. Set Gin mode
 	if cfg.Server.Env == "production" {
@@ -158,6 +161,7 @@ func main() {
 		api.GET("/projects/:id", projectHandler.GetByID)
 		api.PATCH("/projects/:id", projectHandler.Update)
 		api.DELETE("/projects/:id", projectHandler.Delete)
+		api.POST("/projects/:id/restore", projectHandler.Restore)
 
 		// Tasks under Project
 		api.POST("/projects/:id/tasks", taskHandler.Create)
@@ -170,6 +174,11 @@ func main() {
 		api.PATCH("/tasks/:id/block", taskHandler.Block)
 		api.POST("/tasks/:id/archive", taskHandler.Archive)
 		api.POST("/tasks/:id/summarize", ragHandler.SummarizeTask)
+
+		// Task Comments (Phase 17)
+		api.POST("/tasks/:id/comments", commentHandler.Create)
+		api.GET("/tasks/:id/comments", commentHandler.ListByTask)
+		api.DELETE("/tasks/:id/comments/:commentId", commentHandler.Delete)
 
 		// Task Dependencies
 		api.POST("/tasks/:id/dependencies", depHandler.AddDependency)
@@ -199,6 +208,7 @@ func main() {
 		api.POST("/timers/:id/resume", timerHandler.Resume)
 		api.POST("/timers/:id/stop", timerHandler.Stop)
 		api.POST("/timers/:id/adjust", timerHandler.Adjust)
+		api.PATCH("/timers/:id", timerHandler.Update)
 		api.GET("/timers/active", timerHandler.GetActive)
 
 		// Daily Logs & Excel Export

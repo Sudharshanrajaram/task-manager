@@ -17,6 +17,7 @@ import AISubtaskPanel from '../components/subtasks/AISubtaskPanel'
 import TaskSummaryCard from '../components/tasks/TaskSummaryCard'
 import TaskDependenciesPanel from '../components/dependencies/TaskDependenciesPanel'
 import NotesEditor from '../components/notes/NotesEditor'
+import CommentsSection from '../components/comments/CommentsSection'
 import {
   ArrowLeft,
   Clock,
@@ -26,6 +27,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Save,
+  Pencil,
 } from 'lucide-react'
 
 export default function TaskDetail() {
@@ -251,7 +253,8 @@ export default function TaskDetail() {
                 className="flex-1 text-xl font-bold bg-transparent border-b-2 border-indigo-500 outline-none pb-1 text-slate-900 dark:text-slate-100"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    updateTask({ title })
+                    const trimmed = title.trim()
+                    if (trimmed && trimmed !== task.title) updateTask({ title: trimmed })
                     setIsEditingTitle(false)
                   }
                   if (e.key === 'Escape') {
@@ -262,22 +265,32 @@ export default function TaskDetail() {
               />
               <button
                 onClick={() => {
-                  updateTask({ title })
+                  const trimmed = title.trim()
+                  if (trimmed && trimmed !== task.title) updateTask({ title: trimmed })
                   setIsEditingTitle(false)
                 }}
-                className="px-3 py-1 bg-indigo-600 text-white rounded text-xs"
+                className="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium"
               >
                 Save
               </button>
             </div>
           ) : (
-            <h1
-              onClick={() => setIsEditingTitle(true)}
-              className="text-xl font-bold text-slate-900 dark:text-slate-100 cursor-pointer hover:text-indigo-600 transition-colors"
-              title="Click to edit title"
-            >
-              {task.title}
-            </h1>
+            <div className="flex items-center gap-2 group">
+              <h1
+                onClick={() => setIsEditingTitle(true)}
+                className="text-xl font-bold text-slate-900 dark:text-slate-100 cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                title="Click to edit title"
+              >
+                {task.title}
+              </h1>
+              <button
+                onClick={() => setIsEditingTitle(true)}
+                className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-opacity"
+                title="Edit title"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -494,6 +507,9 @@ export default function TaskDetail() {
 
       {/* Obsidian-Style Notes Editor (Phase 11) */}
       <NotesEditor taskId={task.id} title="Ticket Notes & Scratchpad" />
+
+      {/* Ticket Comments & Activity Thread (Phase 17) */}
+      <CommentsSection taskId={task.id} />
     </div>
   )
 }

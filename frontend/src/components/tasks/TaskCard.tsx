@@ -15,9 +15,10 @@ import { CheckSquare, Clock } from 'lucide-react'
 interface TaskCardProps {
   task: Task
   projectId: string
+  onSelect?: (task: Task) => void
 }
 
-export default function TaskCard({ task, projectId }: TaskCardProps) {
+export default function TaskCard({ task, projectId, onSelect }: TaskCardProps) {
   const queryClient = useQueryClient()
 
   const { mutate: updateStatus } = useMutation({
@@ -90,12 +91,22 @@ export default function TaskCard({ task, projectId }: TaskCardProps) {
       )}
 
       {/* Task Title */}
-      <Link
-        to={`/tasks/${task.id}`}
-        className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors line-clamp-2 block mb-3"
-      >
-        {task.title}
-      </Link>
+      {onSelect ? (
+        <button
+          type="button"
+          onClick={() => onSelect(task)}
+          className="text-left text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors line-clamp-2 block mb-3 w-full cursor-pointer"
+        >
+          {task.title}
+        </button>
+      ) : (
+        <Link
+          to={`/tasks/${task.id}`}
+          className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors line-clamp-2 block mb-3"
+        >
+          {task.title}
+        </Link>
+      )}
 
       {/* Labels */}
       {task.labels && task.labels.length > 0 && (

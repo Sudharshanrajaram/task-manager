@@ -9,4 +9,5 @@ export const projectsApi = {
   update: (id: string, input: Partial<CreateProjectInput>) =>
     apiClient.patch<Project>(`/projects/${id}`, input).then((r) => r.data),
   delete: (id: string) => apiClient.delete(`/projects/${id}`),
+  restore: (id: string) => apiClient.post(`/projects/${id}/restore`).then((r) => r.data),
 }

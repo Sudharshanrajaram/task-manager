@@ -18,6 +18,7 @@ type TimerManager interface {
 	ResumeTimer(entryID uuid.UUID) (*model.TimeEntry, error)
 	StopTimer(entryID uuid.UUID) (*model.TimeEntry, error)
 	AdjustTime(entryID uuid.UUID, deltaSeconds int64) (*model.TimeEntry, error)
+	UpdateEntryTime(entryID uuid.UUID, durationSeconds *int64, startedAt, endedAt *time.Time) (*model.TimeEntry, error)
 	GetActiveTimers() []ActiveTimerInfo
 	GetTimerByEntryID(entryID uuid.UUID) (*ActiveTimerInfo, error)
 	RecoverInFlightTimers() error
@@ -303,6 +304,67 @@ func (tm *timerManager) AdjustTime(entryID uuid.UUID, deltaSeconds int64) (*mode
 		if activeTimer.BaseDurationSeconds < 0 {
 			activeTimer.BaseDurationSeconds = 0
 		}
+		snapshot := activeTimer.SnapshotLocked()
+		activeTimer.mu.Unlock()
+
+		tm.broadcast(TimerEvent{
+			Type:      TimerEventAdjusted,
+			Timer:     snapshot,
+			Timestamp: time.Now().UTC(),
+		})
+	}
+
+	return entry, nil
+}
+
+// UpdateEntryTime updates a time entry's logged duration or started/ended bounds post-facto
+func (tm *timerManager) UpdateEntryTime(entryID uuid.UUID, durationSeconds *int64, startedAt, endedAt *time.Time) (*model.TimeEntry, error) {
+	entry, err := tm.timeEntryRepo.FindByID(entryID)
+	if err != nil {
+		return nil, err
+	}
+	if entry == nil {
+		return nil, ErrTimerNotFound
+	}
+
+	var newDuration int64
+	if startedAt != nil && endedAt != nil {
+		if endedAt.Before(*startedAt) {
+			return nil, fmt.Errorf("ended_at cannot be before started_at")
+		}
+		newDuration = int64(endedAt.Sub(*startedAt).Seconds())
+		entry.StartedAt = *startedAt
+		entry.EndedAt = endedAt
+	} else if durationSeconds != nil {
+		if *durationSeconds < 0 {
+			return nil, fmt.Errorf("duration_seconds cannot be negative")
+		}
+		newDuration = *durationSeconds
+		if startedAt != nil {
+			entry.StartedAt = *startedAt
+			end := startedAt.Add(time.Duration(newDuration) * time.Second)
+			entry.EndedAt = &end
+		} else if entry.EndedAt != nil {
+			start := entry.EndedAt.Add(-time.Duration(newDuration) * time.Second)
+			entry.StartedAt = start
+		}
+	} else {
+		return nil, fmt.Errorf("either duration_seconds or started_at and ended_at must be provided")
+	}
+
+	entry.DurationSeconds = newDuration
+	if err := tm.timeEntryRepo.Update(entry); err != nil {
+		return nil, err
+	}
+
+	// If currently active in-memory, adjust base duration as well
+	tm.timersMu.RLock()
+	activeTimer, exists := tm.activeTimers[entryID]
+	tm.timersMu.RUnlock()
+
+	if exists {
+		activeTimer.mu.Lock()
+		activeTimer.BaseDurationSeconds = newDuration
 		snapshot := activeTimer.SnapshotLocked()
 		activeTimer.mu.Unlock()
 

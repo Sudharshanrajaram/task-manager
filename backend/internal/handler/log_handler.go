@@ -43,7 +43,8 @@ func (h *LogHandler) ExportExcel(c *gin.Context) {
 		return
 	}
 
-	excelBytes, err := h.logService.GenerateExcelExport(from, to, projectID)
+	tz := c.DefaultQuery("tz", "Local")
+	excelBytes, err := h.logService.GenerateExcelExport(from, to, projectID, tz)
 	if err != nil {
 		RespondWithError(c, http.StatusInternalServerError, "Failed to generate Excel export")
 		return

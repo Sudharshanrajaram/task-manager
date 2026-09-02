@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/taskflow/backend/internal/model"
@@ -94,6 +96,12 @@ type StartTimerRequest struct {
 
 type AdjustTimerRequest struct {
 	DeltaSeconds int64 `json:"delta_seconds" binding:"required"`
+}
+
+type UpdateTimerRequest struct {
+	DurationSeconds *int64     `json:"duration_seconds"`
+	StartedAt       *time.Time `json:"started_at"`
+	EndedAt         *time.Time `json:"ended_at"`
 }
 
 type SuggestSubtasksRequest struct {

@@ -3,18 +3,29 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { notesApi } from '../../api/notes'
 import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { Edit3, Eye, CheckCircle2, Loader2 } from 'lucide-react'
+import { Edit3, Eye, CheckCircle2, Loader2, Printer } from 'lucide-react'
+import ExportNoteModal from './ExportNoteModal'
 
 interface NotesEditorProps {
   taskId?: string // If undefined, edits global scratchpad
   title?: string
   className?: string
+  ticketKey?: string
+  ticketTitle?: string
+  mode?: 'task' | 'scratchpad'
 }
 
-export default function NotesEditor({ taskId, title = 'Notes', className = '' }: NotesEditorProps) {
+export default function NotesEditor({
+  taskId,
+  title = 'Notes',
+  className = '',
+  ticketKey,
+  ticketTitle,
+}: NotesEditorProps) {
   const [content, setContent] = useState('')
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
   const [isSaved, setIsSaved] = useState(true)
+  const [showExportModal, setShowExportModal] = useState(false)
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Fetch initial note content
@@ -108,6 +119,15 @@ export default function NotesEditor({ taskId, title = 'Notes', className = '' }:
               <Eye className="w-3 h-3" />
               <span>Preview</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+              title="Export formatted document / print to PDF"
+            >
+              <Printer className="w-3 h-3" />
+              <span>Export</span>
+            </button>
           </div>
         </div>
       </div>
@@ -144,6 +164,16 @@ export default function NotesEditor({ taskId, title = 'Notes', className = '' }:
             </span>
           )}
         </div>
+      )}
+
+      {showExportModal && (
+        <ExportNoteModal
+          content={content}
+          title={title}
+          ticketKey={ticketKey}
+          ticketTitle={ticketTitle}
+          onClose={() => setShowExportModal(false)}
+        />
       )}
     </div>
   )

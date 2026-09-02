@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { logsApi } from '../api/logs'
 import { projectsApi } from '../api/projects'
 import { Link } from 'react-router-dom'
-import { formatDuration } from '../lib/utils'
-import { Calendar, Download, Filter, Clock, Archive, Loader2, AlertCircle } from 'lucide-react'
+import { Calendar, Download, Clock, Archive, Loader2, Pencil, Sparkles } from 'lucide-react'
+import EditTimerModal from '../components/timers/EditTimerModal'
 
 export default function DailyLogs() {
   const queryClient = useQueryClient()
@@ -12,6 +12,12 @@ export default function DailyLogs() {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'all'>('all')
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [editingItem, setEditingItem] = useState<{
+    entryId: string
+    taskKey: string
+    taskTitle: string
+    durationSeconds: number
+  } | null>(null)
 
   // Calculate from & to dates based on filter
   const today = new Date().toISOString().split('T')[0]
@@ -63,7 +69,9 @@ export default function DailyLogs() {
     }
   }
 
-  const totalSeconds = logs.reduce((acc, l) => acc + l.total_duration_seconds, 0)
+  const totalSeconds = logs.reduce((acc, l) => acc + (l.total_duration_seconds || 0), 0)
+  const totalHours = Math.floor(totalSeconds / 3600)
+  const totalMinutes = Math.floor((totalSeconds % 3600) / 60)
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -72,10 +80,10 @@ export default function DailyLogs() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <span>Daily Activity Logs</span>
+            <span>Live Activity Grid ("Live Excel")</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Track and export developer work sessions aggregated by day, project, and ticket.
+            Spreadsheet-grid view of ticket sessions. Correct logged durations inline; download as formatted .xlsx anytime.
           </p>
         </div>
 
@@ -95,16 +103,17 @@ export default function DailyLogs() {
             onClick={handleExport}
             disabled={isExporting}
             className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all disabled:opacity-50"
+            title="Download snapshot as clean Excel .xlsx (Phases 18 & 20)"
           >
             {isExporting ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
                 <span>Exporting...</span>
               </>
             ) : (
               <>
-                <Download className="w-3.5 h-3.5" />
-                <span>Export to Excel (.xlsx)</span>
+                <Download className="w-4 h-4" />
+                <span>Export Excel (.xlsx)</span>
               </>
             )}
           </button>
@@ -112,40 +121,36 @@ export default function DailyLogs() {
       </div>
 
       {exportError && (
-        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-600 dark:text-red-400 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{exportError}</span>
+        <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-xl text-xs text-red-600 dark:text-red-400">
+          {exportError}
         </div>
       )}
 
       {/* Filter Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-400 font-medium flex items-center gap-1 mr-1">
-            <Filter className="w-3 h-3" />
-            Time Range:
-          </span>
-          {(['all', 'today', 'week', 'month'] as const).map((r) => (
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        {/* Date Presets */}
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg text-xs">
+          {(['today', 'week', 'month', 'all'] as const).map((range) => (
             <button
-              key={r}
-              onClick={() => setDateRange(r)}
-              className={`px-3 py-1 text-xs rounded-lg font-medium capitalize transition-colors ${
-                dateRange === r
-                  ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              key={range}
+              onClick={() => setDateRange(range)}
+              className={`px-3 py-1.5 rounded-md font-medium capitalize transition-colors ${
+                dateRange === range
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              {r === 'all' ? 'All Time' : r === 'today' ? 'Today' : r === 'week' ? 'Past 7 Days' : 'Past 30 Days'}
+              {range === 'all' ? 'All Time' : range}
             </button>
           ))}
         </div>
 
+        {/* Project Selector */}
         <div className="flex items-center gap-2">
-          <label className="text-xs text-slate-400 font-medium">Project:</label>
           <select
             value={selectedProjectId}
             onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+            className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
           >
             <option value="">All Projects</option>
             {projects.map((p) => (
@@ -164,97 +169,166 @@ export default function DailyLogs() {
           <div className="flex items-baseline gap-2 mt-1">
             <Clock className="w-4 h-4 text-indigo-500" />
             <span className="text-xl font-bold font-mono text-slate-900 dark:text-slate-100">
-              {formatDuration(totalSeconds)}
+              {totalHours}h {String(totalMinutes).padStart(2, '0')}m
             </span>
           </div>
         </div>
         <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <span className="text-xs text-slate-400 font-medium">Sessions Logged</span>
+          <span className="text-xs text-slate-400 font-medium">Ticket Entries</span>
           <div className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-1">
             {logs.length}
           </div>
         </div>
         <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <span className="text-xs text-slate-400 font-medium">Auto-Archiving Worker</span>
-          <div className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">
+          <span className="text-xs text-slate-400 font-medium">Auto-Archiving Status</span>
+          <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
             Active · Daily 24h ticker
           </div>
         </div>
       </div>
 
-      {/* Activity Table */}
+      {/* Live Editable Spreadsheet Grid */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-semibold uppercase">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
               <tr>
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4">Project</th>
                 <th className="py-3 px-4">Ticket</th>
-                <th className="py-3 px-4">Task & Subtask</th>
-                <th className="py-3 px-4">Duration</th>
+                <th className="py-3 px-4">Task Title</th>
+                <th className="py-3 px-4">
+                  <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
+                    <Clock className="w-3 h-3" />
+                    <span>Duration (Editable)</span>
+                  </div>
+                </th>
+                <th className="py-3 px-4">
+                  <div className="flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>AI Summary</span>
+                  </div>
+                </th>
                 <th className="py-3 px-4">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    Loading activity logs...
+                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                    Loading live spreadsheet grid...
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    No time entries recorded for this period. Start tracking time to populate daily logs!
+                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                    No activity recorded for this filter. Start a timer on any ticket to see live logs!
                   </td>
                 </tr>
               ) : (
-                logs.map((log, i) => (
-                  <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                      {log.date}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: log.project_color || '#4F46E5' }}
-                        />
-                        <span className="font-medium text-slate-800 dark:text-slate-200">
-                          {log.project_name}
+                logs.map((log, i) => {
+                  const h = Math.floor(log.total_duration_seconds / 3600)
+                  const m = Math.floor((log.total_duration_seconds % 3600) / 60)
+                  const cleanDuration = `${h}h ${String(m).padStart(2, '0')}m`
+
+                  return (
+                    <tr
+                      key={i}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group"
+                    >
+                      {/* Date */}
+                      <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {log.date}
+                      </td>
+
+                      {/* Project */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: log.project_color || '#4F46E5' }}
+                          />
+                          <span className="font-medium text-slate-800 dark:text-slate-200">
+                            {log.project_name}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Ticket */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <Link
+                          to={`/tasks/${log.task_id}`}
+                          className="font-mono font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                        >
+                          {log.ticket_key}
+                        </Link>
+                      </td>
+
+                      {/* Task Title */}
+                      <td className="py-3 px-4 max-w-xs truncate">
+                        <span className="font-medium text-slate-900 dark:text-slate-100">
+                          {log.task_title}
                         </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <Link
-                        to={`/tasks/${log.task_id}`}
-                        className="font-mono font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
-                      >
-                        {log.ticket_key}
-                      </Link>
-                    </td>
-                    <td className="py-3 px-4 max-w-xs truncate">
-                      <div className="font-medium text-slate-900 dark:text-slate-100">{log.task_title}</div>
-                      {log.subtask_title && (
-                        <div className="text-[11px] text-slate-400 truncate">↳ {log.subtask_title}</div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 font-mono font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                      {formatDuration(log.total_duration_seconds)}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-medium uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                        {log.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+
+                      {/* Duration (Editable Cell) */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (log.latest_entry_id) {
+                              setEditingItem({
+                                entryId: log.latest_entry_id,
+                                taskKey: log.ticket_key,
+                                taskTitle: log.task_title,
+                                durationSeconds: log.total_duration_seconds,
+                              })
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 font-mono font-semibold text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition-colors cursor-pointer group-hover:border-indigo-400"
+                          title="Click to edit duration directly in grid"
+                        >
+                          <span>{cleanDuration}</span>
+                          <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 text-indigo-500 transition-opacity" />
+                        </button>
+                      </td>
+
+                      {/* AI Summary */}
+                      <td className="py-3 px-4 max-w-sm truncate text-slate-600 dark:text-slate-400">
+                        {log.ai_summary ? (
+                          <span className="truncate block" title={log.ai_summary}>
+                            {log.ai_summary}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 dark:text-slate-600 italic">—</span>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-medium uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                          {log.status}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Edit Duration Modal for Grid */}
+      {editingItem && (
+        <EditTimerModal
+          entryId={editingItem.entryId}
+          initialDurationSeconds={editingItem.durationSeconds}
+          taskKey={editingItem.taskKey}
+          taskTitle={editingItem.taskTitle}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </div>
   )
 }

@@ -122,3 +122,20 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Project deleted successfully"})
 }
+
+// Restore handles POST /api/projects/:id/restore
+func (h *ProjectHandler) Restore(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		RespondWithError(c, http.StatusBadRequest, "Invalid project ID format (must be UUID)")
+		return
+	}
+
+	if err := h.service.RestoreProject(id); err != nil {
+		RespondWithError(c, http.StatusInternalServerError, "Failed to restore project")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Project restored successfully"})
+}

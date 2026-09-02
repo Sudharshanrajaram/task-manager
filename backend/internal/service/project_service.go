@@ -17,6 +17,7 @@ type ProjectService interface {
 	GetProjectByID(id uuid.UUID) (*model.Project, error)
 	UpdateProject(id uuid.UUID, name, color string) (*model.Project, error)
 	DeleteProject(id uuid.UUID) error
+	RestoreProject(id uuid.UUID) error
 }
 
 type projectService struct {
@@ -114,4 +115,8 @@ func (s *projectService) DeleteProject(id uuid.UUID) error {
 	}
 
 	return s.repo.Delete(id)
+}
+
+func (s *projectService) RestoreProject(id uuid.UUID) error {
+	return s.repo.Restore(id)
 }

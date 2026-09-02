@@ -151,6 +151,33 @@ export interface SubtaskSuggestionResult {
   count: number
 }
 
+// Comments (Phase 17)
+export interface Comment {
+  id: string
+  task_id: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
+// Daily Log Item (Phases 18 & 20)
+export interface DailyLogItem {
+  date: string
+  first_started_at?: string
+  project_id: string
+  project_name: string
+  project_key: string
+  project_color: string
+  task_id: string
+  ticket_key: string
+  task_title: string
+  ai_summary?: string
+  total_duration_seconds: number
+  duration_formatted?: string
+  status: string
+  latest_entry_id?: string
+}
+
 // API Error
 export interface APIError {
   error: boolean

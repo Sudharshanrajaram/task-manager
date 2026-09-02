@@ -1,18 +1,6 @@
 import { apiClient } from './client'
-
-export interface DailyLogItem {
-  date: string
-  project_id: string
-  project_name: string
-  project_key: string
-  project_color: string
-  task_id: string
-  ticket_key: string
-  task_title: string
-  subtask_title: string
-  total_duration_seconds: number
-  status: string
-}
+import type { DailyLogItem } from '../types'
+export type { DailyLogItem } from '../types'
 
 export const logsApi = {
   getDaily: (from?: string, to?: string, projectId?: string) =>
@@ -23,8 +11,9 @@ export const logsApi = {
       .then((r) => r.data.logs ?? []),
 
   downloadExcel: async (from?: string, to?: string, projectId?: string) => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
     const response = await apiClient.get('/logs/export', {
-      params: { from, to, project_id: projectId, format: 'xlsx' },
+      params: { from, to, project_id: projectId, format: 'xlsx', tz },
       responseType: 'blob',
     })
 

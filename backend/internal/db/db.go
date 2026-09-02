@@ -111,6 +111,7 @@ func AutoMigrate(database *gorm.DB, isPostgres bool) error {
 		&model.TaskTitleEmbedding{},
 		&model.Note{},
 		&model.TaskDependency{},
+		&model.Comment{},
 	); err != nil {
 		return err
 	}

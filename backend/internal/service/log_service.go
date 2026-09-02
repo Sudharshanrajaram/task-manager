@@ -11,22 +11,25 @@ import (
 )
 
 type DailyLogItem struct {
-	Date                 string `json:"date"`
-	ProjectID            string `json:"project_id"`
-	ProjectName          string `json:"project_name"`
-	ProjectKey           string `json:"project_key"`
-	ProjectColor         string `json:"project_color"`
-	TaskID               string `json:"task_id"`
-	TicketKey            string `json:"ticket_key"`
-	TaskTitle            string `json:"task_title"`
-	SubtaskTitle         string `json:"subtask_title"`
-	TotalDurationSeconds int64  `json:"total_duration_seconds"`
-	Status               string `json:"status"`
+	Date                 string  `json:"date"`
+	FirstStartedAt       string  `json:"first_started_at,omitempty"`
+	ProjectID            string  `json:"project_id"`
+	ProjectName          string  `json:"project_name"`
+	ProjectKey           string  `json:"project_key"`
+	ProjectColor         string  `json:"project_color"`
+	TaskID               string  `json:"task_id"`
+	TicketKey            string  `json:"ticket_key"`
+	TaskTitle            string  `json:"task_title"`
+	AISummary            *string `json:"ai_summary,omitempty"`
+	TotalDurationSeconds int64   `json:"total_duration_seconds"`
+	DurationFormatted    string  `json:"duration_formatted"`
+	Status               string  `json:"status"`
+	LatestEntryID        *string `json:"latest_entry_id,omitempty"`
 }
 
 type LogService interface {
 	GetDailyLogs(from, to *time.Time, projectID *uuid.UUID) ([]DailyLogItem, error)
-	GenerateExcelExport(from, to *time.Time, projectID *uuid.UUID) ([]byte, error)
+	GenerateExcelExport(from, to *time.Time, projectID *uuid.UUID, tz string) ([]byte, error)
 	TriggerAutoArchive() (int64, error)
 }
 
@@ -39,10 +42,12 @@ func NewLogService(db *gorm.DB) LogService {
 }
 
 func (s *logService) GetDailyLogs(from, to *time.Time, projectID *uuid.UUID) ([]DailyLogItem, error) {
-	// Build query on time_entries joined with tasks, subtasks, projects
+	// Group at task level per day
 	query := s.db.Table("time_entries").
 		Select(`
 			DATE(time_entries.started_at) as date,
+			MIN(time_entries.started_at) as first_started_at,
+			MAX(time_entries.id) as latest_entry_id,
 			projects.id as project_id,
 			projects.name as project_name,
 			projects.key as project_key,
@@ -50,13 +55,12 @@ func (s *logService) GetDailyLogs(from, to *time.Time, projectID *uuid.UUID) ([]
 			tasks.id as task_id,
 			tasks.ticket_key as ticket_key,
 			tasks.title as task_title,
-			COALESCE(subtasks.title, '') as subtask_title,
+			tasks.ai_summary as ai_summary,
 			SUM(time_entries.duration_seconds) as total_duration_seconds,
 			tasks.status as status
 		`).
 		Joins("LEFT JOIN tasks ON tasks.id = time_entries.task_id").
 		Joins("LEFT JOIN projects ON projects.id = tasks.project_id").
-		Joins("LEFT JOIN subtasks ON subtasks.id = time_entries.subtask_id").
 		Where("time_entries.is_running = ?", false)
 
 	if from != nil {
@@ -69,7 +73,7 @@ func (s *logService) GetDailyLogs(from, to *time.Time, projectID *uuid.UUID) ([]
 		query = query.Where("tasks.project_id = ?", *projectID)
 	}
 
-	query = query.Group("date, projects.id, projects.name, projects.key, projects.color, tasks.id, tasks.ticket_key, tasks.title, subtasks.title, tasks.status").
+	query = query.Group("date, projects.id, projects.name, projects.key, projects.color, tasks.id, tasks.ticket_key, tasks.title, tasks.ai_summary, tasks.status").
 		Order("date DESC, ticket_key ASC")
 
 	var items []DailyLogItem
@@ -77,13 +81,27 @@ func (s *logService) GetDailyLogs(from, to *time.Time, projectID *uuid.UUID) ([]
 		return nil, err
 	}
 
+	for i := range items {
+		h := items[i].TotalDurationSeconds / 3600
+		m := (items[i].TotalDurationSeconds % 3600) / 60
+		items[i].DurationFormatted = fmt.Sprintf("%dh %02dm", h, m)
+	}
+
 	return items, nil
 }
 
-func (s *logService) GenerateExcelExport(from, to *time.Time, projectID *uuid.UUID) ([]byte, error) {
+func (s *logService) GenerateExcelExport(from, to *time.Time, projectID *uuid.UUID, tz string) ([]byte, error) {
 	items, err := s.GetDailyLogs(from, to, projectID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Resolve local timezone
+	loc := time.Local
+	if tz != "" {
+		if parsedLoc, err := time.LoadLocation(tz); err == nil {
+			loc = parsedLoc
+		}
 	}
 
 	f := excelize.NewFile()
@@ -94,7 +112,7 @@ func (s *logService) GenerateExcelExport(from, to *time.Time, projectID *uuid.UU
 
 	// Set title header style
 	headerStyle, err := f.NewStyle(&excelize.Style{
-		Font:      &excelize.Font{Bold: true, Color: "#FFFFFF"},
+		Font:      &excelize.Font{Bold: true, Color: "#FFFFFF", Size: 11},
 		Fill:      excelize.Fill{Type: "pattern", Color: []string{"#4F46E5"}, Pattern: 1},
 		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
 	})
@@ -102,7 +120,8 @@ func (s *logService) GenerateExcelExport(from, to *time.Time, projectID *uuid.UU
 		return nil, err
 	}
 
-	headers := []string{"Date", "Project Key", "Project Name", "Ticket", "Task Title", "Subtask Title", "Duration (HH:MM:SS)", "Seconds", "Status"}
+	// Phase 18: No subtasks, no seconds, include AI Summary column
+	headers := []string{"Date", "Time (Local)", "Project", "Ticket", "Task Title", "Duration", "AI Summary", "Status"}
 	for colIdx, h := range headers {
 		cell, _ := excelize.CoordinatesToCellName(colIdx+1, 1)
 		_ = f.SetCellValue(sheet, cell, h)
@@ -112,32 +131,48 @@ func (s *logService) GenerateExcelExport(from, to *time.Time, projectID *uuid.UU
 	for rowIdx, item := range items {
 		row := rowIdx + 2
 
+		// Duration formatted as Xh Ym (zero seconds per Phase 18)
 		h := item.TotalDurationSeconds / 3600
 		m := (item.TotalDurationSeconds % 3600) / 60
-		sec := item.TotalDurationSeconds % 60
-		hms := fmt.Sprintf("%02d:%02d:%02d", h, m, sec)
+		durationClean := fmt.Sprintf("%dh %02dm", h, m)
+
+		// Parse time and convert to local location without trailing Z
+		localTimeStr := ""
+		if item.FirstStartedAt != "" {
+			for _, layout := range []string{"2006-01-02 15:04:05.999999999-07:00", time.RFC3339, "2006-01-02 15:04:05"} {
+				if t, err := time.Parse(layout, item.FirstStartedAt); err == nil {
+					localTimeStr = t.In(loc).Format("15:04")
+					break
+				}
+			}
+		}
+
+		summaryText := "—"
+		if item.AISummary != nil && *item.AISummary != "" {
+			summaryText = *item.AISummary
+		}
+
+		projectLabel := fmt.Sprintf("[%s] %s", item.ProjectKey, item.ProjectName)
 
 		_ = f.SetCellValue(sheet, fmt.Sprintf("A%d", row), item.Date)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("B%d", row), item.ProjectKey)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("C%d", row), item.ProjectName)
+		_ = f.SetCellValue(sheet, fmt.Sprintf("B%d", row), localTimeStr)
+		_ = f.SetCellValue(sheet, fmt.Sprintf("C%d", row), projectLabel)
 		_ = f.SetCellValue(sheet, fmt.Sprintf("D%d", row), item.TicketKey)
 		_ = f.SetCellValue(sheet, fmt.Sprintf("E%d", row), item.TaskTitle)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("F%d", row), item.SubtaskTitle)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("G%d", row), hms)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("H%d", row), item.TotalDurationSeconds)
-		_ = f.SetCellValue(sheet, fmt.Sprintf("I%d", row), item.Status)
+		_ = f.SetCellValue(sheet, fmt.Sprintf("F%d", row), durationClean)
+		_ = f.SetCellValue(sheet, fmt.Sprintf("G%d", row), summaryText)
+		_ = f.SetCellValue(sheet, fmt.Sprintf("H%d", row), item.Status)
 	}
 
 	// Auto fit column widths
-	_ = f.SetColWidth(sheet, "A", "A", 12)
-	_ = f.SetColWidth(sheet, "B", "B", 14)
-	_ = f.SetColWidth(sheet, "C", "C", 20)
-	_ = f.SetColWidth(sheet, "D", "D", 12)
-	_ = f.SetColWidth(sheet, "E", "E", 35)
-	_ = f.SetColWidth(sheet, "F", "F", 25)
-	_ = f.SetColWidth(sheet, "G", "G", 18)
-	_ = f.SetColWidth(sheet, "H", "H", 12)
-	_ = f.SetColWidth(sheet, "I", "I", 14)
+	_ = f.SetColWidth(sheet, "A", "A", 14) // Date
+	_ = f.SetColWidth(sheet, "B", "B", 14) // Time
+	_ = f.SetColWidth(sheet, "C", "C", 22) // Project
+	_ = f.SetColWidth(sheet, "D", "D", 12) // Ticket
+	_ = f.SetColWidth(sheet, "E", "E", 34) // Task Title
+	_ = f.SetColWidth(sheet, "F", "F", 14) // Duration
+	_ = f.SetColWidth(sheet, "G", "G", 45) // AI Summary
+	_ = f.SetColWidth(sheet, "H", "H", 14) // Status
 
 	var buf bytes.Buffer
 	if err := f.Write(&buf); err != nil {

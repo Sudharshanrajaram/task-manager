@@ -17,6 +17,7 @@ type ProjectRepository interface {
 	FindByKey(key string) (*model.Project, error)
 	Update(project *model.Project) error
 	Delete(id uuid.UUID) error
+	Restore(id uuid.UUID) error
 	IncrementTaskCounter(tx *gorm.DB, projectID uuid.UUID) (int, string, error)
 	GetDB() *gorm.DB
 }
@@ -39,13 +40,13 @@ func (r *projectRepository) Create(project *model.Project) error {
 
 func (r *projectRepository) FindAll() ([]model.Project, error) {
 	var projects []model.Project
-	err := r.db.Order("created_at asc").Find(&projects).Error
+	err := r.db.Where("is_deleted = ?", false).Order("created_at asc").Find(&projects).Error
 	return projects, err
 }
 
 func (r *projectRepository) FindByID(id uuid.UUID) (*model.Project, error) {
 	var project model.Project
-	err := r.db.First(&project, "id = ?", id).Error
+	err := r.db.First(&project, "id = ? AND is_deleted = ?", id, false).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -57,7 +58,7 @@ func (r *projectRepository) FindByID(id uuid.UUID) (*model.Project, error) {
 
 func (r *projectRepository) FindByKey(key string) (*model.Project, error) {
 	var project model.Project
-	err := r.db.First(&project, "key = ?", key).Error
+	err := r.db.First(&project, "key = ? AND is_deleted = ?", key, false).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -72,7 +73,16 @@ func (r *projectRepository) Update(project *model.Project) error {
 }
 
 func (r *projectRepository) Delete(id uuid.UUID) error {
-	return r.db.Delete(&model.Project{}, "id = ?", id).Error
+	return r.db.Model(&model.Project{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"is_deleted": true,
+	}).Error
+}
+
+func (r *projectRepository) Restore(id uuid.UUID) error {
+	return r.db.Model(&model.Project{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"is_deleted": false,
+		"deleted_at": nil,
+	}).Error
 }
 
 // IncrementTaskCounter locks the project row, increments the counter, and returns the new count and project key

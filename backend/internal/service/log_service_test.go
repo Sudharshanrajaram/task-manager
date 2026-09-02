@@ -65,7 +65,7 @@ func TestLogService_DailyLogsAndExcelExport(t *testing.T) {
 	}
 
 	// 2. Generate Excel Export
-	excelBytes, err := logService.GenerateExcelExport(nil, nil, nil)
+	excelBytes, err := logService.GenerateExcelExport(nil, nil, nil, "UTC")
 	if err != nil {
 		t.Fatalf("GenerateExcelExport failed: %v", err)
 	}

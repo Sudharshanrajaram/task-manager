@@ -149,6 +149,34 @@ func (h *TimerHandler) Adjust(c *gin.Context) {
 	c.JSON(http.StatusOK, entry)
 }
 
+// Update handles PATCH /api/timers/:id to manually correct logged time post-facto
+func (h *TimerHandler) Update(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		RespondWithError(c, http.StatusBadRequest, "Invalid timer ID format (must be UUID)")
+		return
+	}
+
+	var req UpdateTimerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondWithError(c, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+
+	entry, err := h.manager.UpdateEntryTime(id, req.DurationSeconds, req.StartedAt, req.EndedAt)
+	if err != nil {
+		if errors.Is(err, service.ErrTimerNotFound) {
+			RespondWithError(c, http.StatusNotFound, "Time entry not found")
+			return
+		}
+		RespondWithError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, entry)
+}
+
 // GetActive handles GET /api/timers/active
 func (h *TimerHandler) GetActive(c *gin.Context) {
 	timers := h.manager.GetActiveTimers()

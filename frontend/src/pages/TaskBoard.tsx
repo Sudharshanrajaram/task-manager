@@ -1,19 +1,24 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { projectsApi } from '../api/projects'
 import { tasksApi } from '../api/tasks'
 import { useUIStore } from '../store/uiStore'
 import { STATUS_CONFIG, STATUS_ORDER } from '../lib/utils'
-import type { TaskStatus } from '../types'
+import type { TaskStatus, Task } from '../types'
 import TaskCard from '../components/tasks/TaskCard'
 import CreateTaskDialog from '../components/tasks/CreateTaskDialog'
-import { Plus, ArrowLeft } from 'lucide-react'
+import DeleteProjectModal from '../components/projects/DeleteProjectModal'
+import TaskDetailModal from '../components/tasks/TaskDetailModal'
+import { Plus, ArrowLeft, Trash2 } from 'lucide-react'
 
 export default function TaskBoard() {
   const { projectId } = useParams<{ projectId: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { setSelectedProject } = useUIStore()
+
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   useEffect(() => {
     if (projectId) {
@@ -35,6 +40,11 @@ export default function TaskBoard() {
   })
 
   if (!projectId) return <div>Project not found</div>
+
+  const taskParam = searchParams.get('task')
+  const activeTask = taskParam
+    ? tasks.find((t) => t.ticket_key === taskParam || t.id === taskParam)
+    : null
 
   return (
     <div className="p-6 h-full flex flex-col min-w-0">
@@ -69,13 +79,26 @@ export default function TaskBoard() {
           )}
         </div>
 
-        <button
-          onClick={() => setShowCreateDialog(true)}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors shadow-sm"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          New Ticket
-        </button>
+        <div className="flex items-center gap-2">
+          {project && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 border border-slate-200 dark:border-slate-800 rounded-lg transition-colors"
+              title="Delete or archive this project"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Project</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowCreateDialog(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors shadow-sm"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Ticket
+          </button>
+        </div>
       </div>
 
       {/* Kanban Columns (4 columns per spec 1.1) */}
@@ -116,7 +139,12 @@ export default function TaskBoard() {
                 {/* Task List */}
                 <div className="space-y-2.5 overflow-y-auto flex-1 pr-1 scrollbar-thin">
                   {columnTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} projectId={projectId} />
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      projectId={projectId}
+                      onSelect={(t) => setSearchParams({ task: t.ticket_key })}
+                    />
                   ))}
 
                   {columnTasks.length === 0 && (
@@ -137,7 +165,27 @@ export default function TaskBoard() {
           onClose={() => setShowCreateDialog(false)}
         />
       )}
+
+      {showDeleteModal && project && (
+        <DeleteProjectModal
+          projectId={project.id}
+          projectName={project.name}
+          projectKey={project.key}
+          onClose={() => setShowDeleteModal(false)}
+        />
+      )}
+
+      {/* Jira-style Task Detail Modal over Board (Phase 21) */}
+      {activeTask && (
+        <TaskDetailModal
+          taskId={activeTask.id}
+          onClose={() => {
+            const newParams = new URLSearchParams(searchParams)
+            newParams.delete('task')
+            setSearchParams(newParams)
+          }}
+        />
+      )}
     </div>
   )
 }
-
